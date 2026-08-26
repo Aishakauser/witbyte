@@ -3,11 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>WitByte — From Bit to Token | Interactive Learning Platform</title>
+<meta name="description" content="A free, self-contained interactive learning platform covering the full silicon-to-AI stack. 65 modules across Computer Science, Hardware, BSP, and AI/ML — with hands-on exercises, Mermaid diagrams, and mini-projects.">
+<meta property="og:title" content="WitByte — From Bit to Token">
+<meta property="og:description" content="Learn the whole stack — from silicon to AI. 65 interactive modules covering Computer Science, Hardware, Board Support Packages, and AI/ML.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://witbyte.vercel.app">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="WitByte — From Bit to Token">
+<meta name="twitter:description" content="Learn the whole stack — from silicon to AI. 65 interactive modules covering Computer Science, Hardware, Board Support Packages, and AI/ML.">
+<link rel="canonical" href="https://witbyte.vercel.app">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
-</head>
-<body>
-<title>WitByte</title>
-<script>document.documentElement.setAttribute('data-theme','dark')</script>
+<script>document.documentElement.setAttribute('data-theme',function(){try{return localStorage.getItem('witbyte-theme')||'dark'}catch(e){return'dark'}}())</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* ── Tokens ── */
@@ -195,7 +204,7 @@ img{max-width:100%}
 .conn-card .conn-what{color:var(--ink2);line-height:1.5}
 
 /* ── Module reader ── */
-.reader{padding:48px 40px 80px;max-width:780px;margin:0 auto}
+.reader{padding:48px 40px 80px;max-width:680px;margin:0 auto}
 .reader .back-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink3);font-weight:500;margin-bottom:24px;cursor:pointer;transition:color .15s}
 .reader .back-btn:hover{color:var(--ink)}
 .reader .mod-eyebrow{font-size:11px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
@@ -366,14 +375,19 @@ img{max-width:100%}
   .menu-btn{display:flex}
   .home{padding:32px 20px 48px}
   .reader{padding:32px 20px 60px}
-  .search-box input{width:140px}
+  .search-box input{width:180px}
   .search-kbd{display:none}
   .stack-wrap{grid-template-columns:1fr}
   .stack-detail{min-height:auto}
   .how-grid{grid-template-columns:1fr}
 }
 @media(min-width:769px){.menu-btn{display:none}}
+.skip-link{position:absolute;top:-100%;left:16px;padding:8px 16px;background:var(--cs);color:#fff;border-radius:0 0 8px 8px;z-index:100;font-size:14px;font-weight:600;transition:top .2s}
+.skip-link:focus{top:0}
 </style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
 
 <!-- ══ APP SHELL ══ -->
 <div class="app">
@@ -392,8 +406,8 @@ img{max-width:100%}
     <div class="topbar-right">
       <div class="search-box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" placeholder="Search modules..." id="searchInput" autocomplete="off" aria-label="Search modules">
-        <div class="search-results" id="searchResults"></div>
+        <input type="text" placeholder="Search modules..." id="searchInput" autocomplete="off" aria-label="Search modules" role="combobox" aria-expanded="false" aria-controls="searchResults" aria-autocomplete="list">
+        <div class="search-results" id="searchResults" role="listbox"></div>
         <span class="search-kbd">⌘K</span>
       </div>
       <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme">
@@ -413,8 +427,12 @@ img{max-width:100%}
   <div class="kbd-hint" id="kbd-hint"></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" crossorigin="anonymous"></script>
 <script>
+// ── Global error handler ──
+window.onerror = function(msg, src, line, col) { console.error('WitByte error:', msg, 'at', src, line + ':' + col); return false; };
+window.addEventListener('unhandledrejection', function(e) { console.error('WitByte unhandled promise:', e.reason); });
+
 // ── Mermaid init ──
 if (typeof mermaid === 'undefined') { window.mermaid = { initialize(){}, run(){return Promise.resolve()} }; }
 mermaid.initialize({
@@ -6770,6 +6788,14 @@ volumes:
 
 const ALL_MODULES = {cs: CS_MODULES, hw: HW_MODULES, bsp: BSP_MODULES, ai: AI_MODULES};
 
+const SEARCH_INDEX = [];
+for (const [trackKey, mods] of Object.entries(ALL_MODULES)) {
+  const track = TRACKS[trackKey];
+  for (const mod of mods) {
+    SEARCH_INDEX.push({ trackKey, track, mod, haystack: (mod.title + ' ' + (mod.topics||[]).join(' ') + ' ' + (mod.content||'')).toLowerCase() });
+  }
+}
+
 // ══════════════════════════════════════════
 //  UI RENDERING
 // ══════════════════════════════════════════
@@ -6782,10 +6808,18 @@ let currentModule = null;
 function getCompleted() {
   try { return JSON.parse(localStorage.getItem('witbyte-completed') || '{}'); } catch(e) { return {}; }
 }
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:8px;font-size:13px;z-index:200;box-shadow:0 4px 12px var(--shadow);opacity:0;transition:opacity .3s';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.style.opacity = '1');
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4000);
+}
 function setCompleted(modId, done) {
   const c = getCompleted();
   if (done) c[modId] = Date.now(); else delete c[modId];
-  try { localStorage.setItem('witbyte-completed', JSON.stringify(c)); } catch(e) {}
+  try { localStorage.setItem('witbyte-completed', JSON.stringify(c)); return true; } catch(e) { showToast('Storage full — completion not saved'); return false; }
 }
 function isCompleted(modId) { return !!getCompleted()[modId]; }
 function getTrackProgress(trackKey) {
@@ -6802,6 +6836,8 @@ function getOverallProgress() {
 }
 
 // ── Navigation helpers ──
+function kbClick(e) { if(e.key==='Enter'||e.key===' '){e.preventDefault();e.currentTarget.click();} }
+
 function getAdjacentModules(trackKey, modId) {
   const mods = ALL_MODULES[trackKey] || [];
   const idx = mods.findIndex(m => m.id === modId);
@@ -6830,7 +6866,7 @@ function copyCode(btn) {
 // ── Toggle complete ──
 function toggleComplete(modId) {
   const done = !isCompleted(modId);
-  setCompleted(modId, done);
+  if (!setCompleted(modId, done)) return;
   const btn = document.querySelector('.complete-toggle');
   if (btn) { btn.classList.toggle('done', done); btn.querySelector('.complete-text').textContent = done ? 'Completed' : 'Mark as complete'; }
   renderSidebar();
@@ -6840,7 +6876,7 @@ function renderSidebar() {
   const sb = document.getElementById('sidebar');
   let html = `<div class="sidebar-section">
     <div class="sidebar-section-title">Navigate</div>
-    <div class="nav-item ${currentView==='home'?'active':''}" onclick="showHome()">
+    <div class="nav-item ${currentView==='home'?'active':''}" role="button" tabindex="0" onclick="showHome()" onkeydown="kbClick(event)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Home
     </div>
@@ -6852,7 +6888,7 @@ function renderSidebar() {
     const isActive = currentTrack === key;
     const mods = ALL_MODULES[key] || [];
     const prog = getTrackProgress(key);
-    html += `<div class="nav-item ${isActive?'active':''}" onclick="showTrack('${key}')">
+    html += `<div class="nav-item ${isActive?'active':''}" role="button" tabindex="0" onclick="showTrack('${key}')" onkeydown="kbClick(event)">
       <span class="pip" style="background:var(--${track.color})"></span>
       ${track.name}
       <span class="count">${prog.done}/${prog.total}</span>
@@ -6866,7 +6902,7 @@ function renderSidebar() {
       html += '<div class="module-list">';
       mods.forEach(m => {
         const done = isCompleted(m.id);
-        html += `<div class="mod-item ${currentModule===m.id?'active':''}" onclick="showModule('${key}','${m.id}')">
+        html += `<div class="mod-item ${currentModule===m.id?'active':''}" role="button" tabindex="0" onclick="showModule('${key}','${m.id}')" onkeydown="kbClick(event)">
           <span class="mod-check ${done?'done':''}">${done ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}</span>
           <span class="mod-title">${m.title}</span>
         </div>`;
@@ -6910,11 +6946,11 @@ function showModule(trackKey, modId) {
 function scrollMainTop() {
   const main = document.getElementById('main');
   if (main) main.scrollTo({top:0,behavior:'instant'});
-  // Close mobile sidebar on navigation
   const sb = document.querySelector('.sidebar');
   const bd = document.querySelector('.sidebar-backdrop');
   if (sb) sb.classList.remove('open');
   if (bd) bd.classList.remove('open');
+  if (main) { const h = main.querySelector('h1'); if (h) { h.setAttribute('tabindex','-1'); h.focus({preventScroll:true}); } }
 }
 
 // Stack layers for the visualization
@@ -6990,7 +7026,7 @@ function renderHome() {
         <div>
           <div class="stack-layers">
             ${STACK_LAYERS.map((layer,i)=>`
-              <div class="stack-layer ${i===activeStackLayer?'active':''}" onclick="selectStackLayer(${i})">
+              <div class="stack-layer ${i===activeStackLayer?'active':''}" role="button" tabindex="0" onclick="selectStackLayer(${i})" onkeydown="kbClick(event)">
                 <span class="sl-num">${layer.id}</span>
                 <span class="sl-dot" style="background:var(--${layer.color})"></span>
                 <span class="sl-name">${layer.name}</span>
@@ -7015,7 +7051,7 @@ function renderHome() {
           const p = getTrackProgress(k);
           const td = trackDescs[k];
           return `
-          <div class="track-hero ${t.color}" onclick="showTrack('${k}')">
+          <div class="track-hero ${t.color}" role="button" tabindex="0" onclick="showTrack('${k}')" onkeydown="kbClick(event)">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
               <span class="track-badge ${t.color}">${td.badge}</span>
               <span style="font-size:12px;color:var(--ink3);font-variant-numeric:tabular-nums">${p.total} lessons</span>
@@ -7087,7 +7123,7 @@ function renderTrackOverview(key) {
   const main = document.getElementById('main');
   const prog = getTrackProgress(key);
   let html = `<div class="reader">
-    <div class="back-btn" onclick="showHome()">← All tracks</div>
+    <div class="back-btn" role="button" tabindex="0" onclick="showHome()" onkeydown="kbClick(event)">← All tracks</div>
     <div class="mod-eyebrow" style="color:var(--${track.color})">${track.name}</div>
     <h1>${track.name}${track.subtitle ? `<span style="display:block;font-size:16px;font-weight:400;color:var(--ink2);margin-top:4px">${track.subtitle}</span>` : ''}</h1>
     <p>${track.tagline}</p>
@@ -7102,7 +7138,7 @@ function renderTrackOverview(key) {
     const phaseMods = mods.filter(m => m.phase === pi);
     phaseMods.forEach(m => {
       const done = isCompleted(m.id);
-      html += `<div class="track-mod-row" onclick="showModule('${key}','${m.id}')">
+      html += `<div class="track-mod-row" role="button" tabindex="0" onclick="showModule('${key}','${m.id}')" onkeydown="kbClick(event)">
         <div style="display:flex;align-items:center;gap:10px">
           <span class="mod-check ${done?'done':''}" style="width:20px;height:20px">${done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : ''}</span>
           <span style="font-family:var(--mono);font-size:12px;color:var(--ink3);width:28px">${m.num}</span>
@@ -7127,13 +7163,13 @@ function renderModule(trackKey, mod) {
   // Build prev/next nav
   let navHtml = '<div class="mod-nav">';
   if (adj.prev) {
-    navHtml += `<div class="mod-nav-btn" onclick="showModule('${trackKey}','${adj.prev.id}')">
+    navHtml += `<div class="mod-nav-btn" role="button" tabindex="0" onclick="showModule('${trackKey}','${adj.prev.id}')" onkeydown="kbClick(event)">
       <span class="nav-dir">← Previous</span>
       <span class="nav-title">${adj.prev.title}</span>
     </div>`;
   }
   if (adj.next) {
-    navHtml += `<div class="mod-nav-btn next" onclick="showModule('${trackKey}','${adj.next.id}')">
+    navHtml += `<div class="mod-nav-btn next" role="button" tabindex="0" onclick="showModule('${trackKey}','${adj.next.id}')" onkeydown="kbClick(event)">
       <span class="nav-dir">Next →</span>
       <span class="nav-title">${adj.next.title}</span>
     </div>`;
@@ -7156,7 +7192,7 @@ function renderModule(trackKey, mod) {
 
   if (!mod.content) {
     main.innerHTML = `<div class="reader">
-      <div class="back-btn" onclick="showTrack('${trackKey}')">← ${track.name}</div>
+      <div class="back-btn" role="button" tabindex="0" onclick="showTrack('${trackKey}')" onkeydown="kbClick(event)">← ${track.name}</div>
       <div class="mod-eyebrow" style="color:var(--${track.color})"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--${track.color})"></span> ${track.name} · Module ${mod.num}</div>
       <h1>${mod.title}</h1>
       <div class="mod-meta"><span>~${mod.hours} hours</span></div>
@@ -7177,7 +7213,7 @@ function renderModule(trackKey, mod) {
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
 
   main.innerHTML = `<div class="reader">
-    <div class="back-btn" onclick="showTrack('${trackKey}')">← ${track.name}</div>
+    <div class="back-btn" role="button" tabindex="0" onclick="showTrack('${trackKey}')" onkeydown="kbClick(event)">← ${track.name}</div>
     <div class="mod-eyebrow" style="color:var(--${track.color})"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--${track.color})"></span> ${track.name} · Module ${mod.num}</div>
     <h1>${mod.title}</h1>
     <div class="mod-meta"><span>~${mod.hours} hours</span><span>${readTime} min read</span>${mod.topics ? `<span>${mod.topics.length} topics</span>` : ''}</div>
@@ -7391,25 +7427,21 @@ searchInput.addEventListener('input', () => {
 });
 function _doSearch() {
   const q = searchInput.value.trim().toLowerCase();
-  if (q.length < 2) { searchResults.classList.remove('show'); return; }
+  if (q.length < 2) { searchResults.classList.remove('show'); searchInput.setAttribute('aria-expanded','false'); return; }
 
   const results = [];
-  for (const [trackKey, mods] of Object.entries(ALL_MODULES)) {
-    const track = TRACKS[trackKey];
-    for (const mod of mods) {
-      const haystack = (mod.title + ' ' + (mod.topics||[]).join(' ') + ' ' + (mod.content||'')).toLowerCase();
-      if (haystack.includes(q)) {
-        let snippet = '';
-        if (mod.content) {
-          const idx = mod.content.toLowerCase().indexOf(q);
-          if (idx > -1) {
-            const start = Math.max(0, idx - 40);
-            const end = Math.min(mod.content.length, idx + q.length + 60);
-            snippet = '...' + mod.content.substring(start, end).replace(/[#*`\n]/g,' ').trim() + '...';
-          }
+  for (const entry of SEARCH_INDEX) {
+    if (entry.haystack.includes(q)) {
+      let snippet = '';
+      if (entry.mod.content) {
+        const idx = entry.mod.content.toLowerCase().indexOf(q);
+        if (idx > -1) {
+          const start = Math.max(0, idx - 40);
+          const end = Math.min(entry.mod.content.length, idx + q.length + 60);
+          snippet = '...' + entry.mod.content.substring(start, end).replace(/[#*`\n]/g,' ').trim() + '...';
         }
-        results.push({ trackKey, track, mod, snippet });
       }
+      results.push({ trackKey: entry.trackKey, track: entry.track, mod: entry.mod, snippet });
     }
   }
 
@@ -7417,7 +7449,7 @@ function _doSearch() {
     searchResults.innerHTML = '<div style="padding:14px;color:var(--ink3);font-size:13px">No results found</div>';
   } else {
     searchResults.innerHTML = results.slice(0,8).map(r => `
-      <div class="sr-item" onclick="showModule('${r.trackKey}','${r.mod.id}');searchResults.classList.remove('show');searchInput.value='';">
+      <div class="sr-item" role="option" onclick="showModule('${r.trackKey}','${r.mod.id}');searchResults.classList.remove('show');searchInput.value='';">
         <div class="sr-track" style="color:var(--${r.track.color})">${escapeHtml(r.track.name)} · ${r.mod.num}</div>
         <div class="sr-title">${escapeHtml(r.mod.title)}</div>
         ${r.snippet ? `<div class="sr-snippet">${escapeHtml(r.snippet)}</div>` : ''}
@@ -7425,10 +7457,11 @@ function _doSearch() {
     `).join('');
   }
   searchResults.classList.add('show');
+  searchInput.setAttribute('aria-expanded','true');
 }
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.search-box')) searchResults.classList.remove('show');
+  if (!e.target.closest('.search-box')) { searchResults.classList.remove('show'); searchInput.setAttribute('aria-expanded','false'); }
 });
 
 // ── Theme toggle ──
@@ -7436,7 +7469,9 @@ function toggleTheme() {
   const root = document.documentElement;
   const current = root.getAttribute('data-theme');
   const isDark = current !== 'light';
-  root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  const newTheme = isDark ? 'light' : 'dark';
+  root.setAttribute('data-theme', newTheme);
+  try { localStorage.setItem('witbyte-theme', newTheme); } catch(e) {}
 
   // Swap icon: moon (dark mode) ↔ sun (light mode)
   const icon = document.getElementById('themeIcon');
