@@ -140,7 +140,16 @@ img{max-width:100%}
 .sidebar{grid-row:2;overflow-y:auto;background:var(--bg2);border-right:1px solid var(--border);padding:16px 0}
 .main{grid-row:2;overflow-y:auto;scroll-behavior:smooth}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes progressPulse{0%{transform:scaleX(1)}50%{transform:scaleX(1.04)}100%{transform:scaleX(1)}}
 .main > *{animation:fadeIn .25s var(--ease) both}
+.track-cards .track-hero{animation:slideUp .4s var(--ease) both}
+.track-cards .track-hero:nth-child(1){animation-delay:0s}
+.track-cards .track-hero:nth-child(2){animation-delay:0.1s}
+.track-cards .track-hero:nth-child(3){animation-delay:0.2s}
+.track-cards .track-hero:nth-child(4){animation-delay:0.3s}
+.stack-section,.track-cards,.how-section,.connections{opacity:0;transform:translateY(20px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.stack-section.appear,.track-cards.appear,.how-section.appear,.connections.appear{opacity:1;transform:translateY(0)}
 
 /* ── Topbar ── */
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-0.3px}
@@ -180,8 +189,8 @@ img{max-width:100%}
 .home .subtitle{font-size:17px;color:var(--ink2);margin-top:14px;max-width:600px;line-height:1.7}
 .stats-row{display:flex;gap:32px;margin-top:32px;flex-wrap:wrap}
 .stat-card{display:flex;flex-direction:column}
-.stat-card .val{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
-.stat-card .lab{font-size:12px;color:var(--ink3);font-weight:500}
+.stat-card .val,.stat-card .stat-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat-card .lab,.stat-card .stat-label{font-size:12px;color:var(--ink3);font-weight:500}
 .track-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:40px}
 .track-hero{border:1px solid var(--border);border-radius:14px;padding:24px;background:var(--surface);cursor:pointer;transition:all .2s var(--ease);position:relative;overflow:hidden}
 .track-hero:hover{border-color:var(--border2);box-shadow:0 4px 16px var(--shadow);transform:translateY(-2px)}
@@ -364,6 +373,15 @@ img{max-width:100%}
 .gotcha-box{border-radius:10px;padding:16px 20px;margin-bottom:18px;border-left:3.5px solid var(--hw);background:var(--hw-soft);position:relative}
 .gotcha-box .gotcha-title{font-weight:700;font-size:14px;color:var(--hw);margin-bottom:4px;display:flex;align-items:center;gap:6px}
 .gotcha-box .gotcha-body{font-size:14px;color:var(--ink);line-height:1.65}
+
+/* ── Focus-visible ── */
+.nav-item:focus-visible,.track-hero:focus-visible,.mod-item:focus-visible,.btn-primary:focus-visible,.btn-outline:focus-visible,.stack-layer:focus-visible,.track-mod-row:focus-visible{outline:2px solid var(--cs);outline-offset:2px}
+
+/* ── Micro-interactions ── */
+.bar-fill.pulse{animation:progressPulse .35s var(--ease)}
+.mod-item.active{position:relative;box-shadow:inset 0 0 0 1px var(--cs-glow),0 0 8px var(--cs-glow)}
+@keyframes sidebarGlow{0%{box-shadow:inset 0 0 0 1px var(--cs-glow),0 0 8px var(--cs-glow)}50%{box-shadow:inset 0 0 0 1px var(--cs-glow),0 0 14px var(--cs-glow)}100%{box-shadow:inset 0 0 0 1px var(--cs-glow),0 0 8px var(--cs-glow)}}
+.mod-item.active{animation:sidebarGlow 2s var(--ease) infinite}
 
 /* ── Responsive ── */
 .sidebar-backdrop{display:none;position:fixed;inset:0;top:56px;background:rgba(0,0,0,.35);z-index:19;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
@@ -10056,6 +10074,15 @@ function toggleComplete(modId) {
   const btn = document.querySelector('.complete-toggle');
   if (btn) { btn.classList.toggle('done', done); btn.querySelector('.complete-text').textContent = done ? 'Completed' : 'Mark as complete'; }
   renderSidebar();
+  // Pulse progress bar fills on completion
+  if (done) {
+    setTimeout(() => {
+      document.querySelectorAll('.bar-fill').forEach(el => {
+        el.classList.add('pulse');
+        el.addEventListener('animationend', () => el.classList.remove('pulse'), { once: true });
+      });
+    }, 50);
+  }
 }
 
 function renderSidebar() {
@@ -10197,12 +10224,19 @@ function renderHome() {
       <span>Userspace</span><span class="sep">→</span>
       <span>AI</span>
     </div>
-    <h1>Learn the whole stack.<br>Not just the bit that runs in a browser.</h1>
+    <h1>Learn the <span class="gradient">whole stack</span>.<br>Not just the bit that runs in a browser.</h1>
     <p class="subtitle">Most courses hand you an API key and call it AI. We start at the pin and climb to the model — schematics, device trees, kernel drivers, runtimes, NPUs. Four tracks, run them in parallel, quit any time you get bored (you won't).</p>
     <div class="hero-ctas">
       <button class="btn-primary" onclick="showTrack('hw')" style="font-size:15px;padding:12px 24px">Start climbing</button>
       <button class="btn-outline" onclick="document.getElementById('tracks-section').scrollIntoView({behavior:'smooth'})">See all four tracks</button>
       <span class="note">No signup for the first 6 lessons</span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-num">${Object.values(ALL_MODULES).reduce((s,m)=>s+m.length,0)}</div><div class="stat-label">Modules</div></div>
+      <div class="stat-card"><div class="stat-num">${Object.keys(TRACKS).length}</div><div class="stat-label">Tracks</div></div>
+      <div class="stat-card"><div class="stat-num">95+</div><div class="stat-label">Diagrams</div></div>
+      <div class="stat-card"><div class="stat-num">${Object.values(TRACKS).reduce((s,t)=>s+t.hours,0)}</div><div class="stat-label">Hours</div></div>
     </div>
 
     <!-- THE STACK -->
@@ -10301,6 +10335,15 @@ function renderHome() {
     </div>
   </div>`;
   main.scrollTop = 0;
+
+  // Scroll-triggered entrance animations
+  setTimeout(() => {
+    const sections = main.querySelectorAll('.stack-section, .track-cards, .how-section, .connections');
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('appear'); obs.unobserve(e.target); } });
+    }, { threshold: 0.1 });
+    sections.forEach(s => obs.observe(s));
+  }, 100);
 }
 
 function renderTrackOverview(key) {
@@ -10461,6 +10504,16 @@ function parseMarkdown(md) {
   let inList = false;
   let listItems = [];
   let listType = 'ul';
+  let inBlockquote = false;
+  let blockquoteLines = [];
+
+  function flushBlockquote() {
+    if (inBlockquote && blockquoteLines.length) {
+      html += `<blockquote>${blockquoteLines.map(l => inlineFormat(l)).join('<br>')}</blockquote>`;
+      blockquoteLines = [];
+      inBlockquote = false;
+    }
+  }
 
   function flushList() {
     if (inList && listItems.length) {
@@ -10516,6 +10569,7 @@ function parseMarkdown(md) {
       } else {
         flushList();
         flushTable();
+        flushBlockquote();
         inCodeBlock = true;
         codeLang = line.replace(/^```/, '').trim();
       }
@@ -10532,6 +10586,7 @@ function parseMarkdown(md) {
     if (line.trim() === '') {
       flushList();
       flushTable();
+      flushBlockquote();
       i++;
       continue;
     }
@@ -10539,6 +10594,7 @@ function parseMarkdown(md) {
     // Table
     if (line.includes('|') && line.trim().startsWith('|')) {
       flushList();
+      flushBlockquote();
       if (!inTable) inTable = true;
       tableRows.push(line);
       i++;
@@ -10551,6 +10607,7 @@ function parseMarkdown(md) {
     const hMatch = line.match(/^(#{1,3})\s+(.*)/);
     if (hMatch) {
       flushList();
+      flushBlockquote();
       const level = hMatch[1].length;
       const tag = `h${level}`;
       html += `<${tag}>${inlineFormat(hMatch[2])}</${tag}>`;
@@ -10571,17 +10628,28 @@ function parseMarkdown(md) {
       flushList();
     }
 
-    // Blockquote
+    // Blockquote (accumulate consecutive lines)
     if (line.startsWith('>')) {
-      html += `<blockquote>${inlineFormat(line.replace(/^>\s*/, ''))}</blockquote>`;
+      flushList();
+      if (!inBlockquote) inBlockquote = true;
+      blockquoteLines.push(line.replace(/^>\s*/, ''));
       i++;
       continue;
+    } else {
+      flushBlockquote();
     }
 
     // Gotcha callout
     if (line.match(/^⚠️\s*\*\*Gotcha/)) {
       const gotchaText = line.replace(/^⚠️\s*\*\*Gotcha:?\*\*\s*/, '');
       html += `<div class="gotcha-box"><div class="gotcha-title">⚠ Gotcha</div><div class="gotcha-body">${inlineFormat(gotchaText)}</div></div>`;
+      i++;
+      continue;
+    }
+
+    // HTML pass-through: don't wrap raw HTML tags in <p>
+    if (line.match(/^\s*<\/?[a-zA-Z][^>]*>/)) {
+      html += line + '\n';
       i++;
       continue;
     }
@@ -10595,6 +10663,7 @@ function parseMarkdown(md) {
   }
   flushList();
   flushTable();
+  flushBlockquote();
   return html;
 }
 
