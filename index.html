@@ -589,9 +589,20 @@ Pick any project you've built or want to build. Write a one-page plan covering:
 3. Identify 2 places you'd intentionally take on tech debt
 4. Estimate effort using story points
 
+## ⚠️ Gotcha
+
+**"We'll fix it later" is how tech debt becomes permanent.** Deliberate tech debt is a valid tool, but only if you track it. Create a ticket for every shortcut, label it as tech debt, and schedule time to pay it down. Untracked debt compounds silently until the codebase is too fragile to change safely.
+
+**Story points are not hours in disguise.** The moment someone asks "how many hours is a 5-point story?", the system breaks. Points measure relative complexity, not duration. A 5-point story might take 2 hours for a senior developer and 8 hours for a junior. That is fine — velocity accounts for the difference over time.
+
 ## 🛠️ Mini-Project
 
-Set up a GitHub Projects board with Kanban columns. Create 10 issues for a hypothetical app (mix of features, bugs, and infrastructure). Set WIP limits. Practice moving cards through the workflow, adding labels for priority and type.
+1. Set up a GitHub Projects board with Kanban columns (To Do, In Progress, Review, Done)
+2. Create 10 issues for a hypothetical app — include a mix of features, bugs, and infrastructure tasks
+3. Estimate each issue using story points (1, 2, 3, 5, 8)
+4. Set WIP limits on each column (e.g., In Progress: 3, Review: 2)
+5. Practice moving cards through the workflow, adding labels for priority and type
+6. After completing all cards, write a one-paragraph retrospective: what went smoothly, what created bottlenecks
 
 ## ✅ You've mastered this when…
 
@@ -705,16 +716,24 @@ Pick 3 apps you use daily (e.g., Uber, Slack, Instagram). For each:
 1. Sketch the high-level architecture (client, services, databases, queues)
 2. Identify which pattern fits (monolith? microservices? event-driven?)
 3. Identify the hardest scaling challenge
+4. Describe what would change if the app needed to handle 100x more users
 
 Use Mermaid or Excalidraw — the tool matters less than the thinking.
 
+## ⚠️ Gotcha
+
+**Premature microservices cause more failures than monoliths.** Teams split into microservices before they understand their domain boundaries, creating tightly coupled services that must be deployed together — a "distributed monolith" with all the drawbacks of both patterns and benefits of neither.
+
+**Event-driven does not mean "fire and forget."** Events can be lost, duplicated, or delivered out of order. In production, you need idempotent consumers (safe to process the same event twice), dead-letter queues (for events that fail processing), and monitoring for consumer lag. Without these, event-driven architecture creates invisible data loss.
+
 ## 🛠️ Mini-Project
 
-Design the architecture for a note-taking app that supports:
-- User auth, note CRUD, real-time collaboration, search
-- Draw the system diagram
-- Justify monolith vs microservices
-- Identify which parts could be event-driven
+Design the architecture for a note-taking app that supports real-time collaboration:
+1. List the functional requirements (user auth, note CRUD, real-time collaboration, search, sharing)
+2. Draw the full system diagram showing all components and data flow using Mermaid
+3. Justify your choice of monolith vs microservices with specific trade-offs
+4. Identify which parts would benefit from event-driven architecture and why
+5. Design the database schema for users, notes, and sharing permissions
 
 ## ✅ You've mastered this when…
 
@@ -852,13 +871,20 @@ flowchart TD
 3. Write the SQL queries shown — run them, modify them, break them
 4. Use \`EXPLAIN ANALYZE\` on a query before and after adding an index
 
+## ⚠️ Gotcha
+
+**Over-normalizing is as bad as not normalizing.** In production, a query that JOINs 6 tables to display a single page is a performance problem. The point of knowing normalization is to denormalize *intentionally* when measurements justify it — not to achieve the highest normal form possible.
+
+**Indexing everything is not free.** Every index speeds up reads but slows down writes (INSERT/UPDATE/DELETE) because the index must be updated too. An unused index wastes disk space and write performance. Use \`pg_stat_user_indexes\` to find indexes that are never scanned, and drop them.
+
 ## 🛠️ Mini-Project
 
 Design and build the database for a blog platform:
-- Users, Posts, Comments, Tags (many-to-many with posts)
-- Normalize to 3NF, then denormalize one thing for performance
-- Write 5 non-trivial queries (joins, aggregations, window functions)
-- Add indexes and prove they help with EXPLAIN ANALYZE
+1. Design the schema: Users, Posts, Comments, Tags (many-to-many with posts via a join table)
+2. Normalize to 3NF, then deliberately denormalize one thing for read performance (e.g., store comment count on the posts table)
+3. Write 5 non-trivial queries: a multi-table JOIN, a GROUP BY with HAVING, a subquery, a window function, and a CTE (Common Table Expression)
+4. Add indexes on columns used in WHERE and JOIN clauses, and prove they help with \`EXPLAIN ANALYZE\` before-and-after comparisons
+5. Write a transaction that transfers "credits" between two users and demonstrate atomicity (both succeed or both fail)
 
 ## ✅ You've mastered this when…
 
@@ -994,14 +1020,20 @@ Build a REST API with Express.js (or FastAPI in Python):
 3. Add rate limiting (use \`express-rate-limit\`)
 4. Document with OpenAPI/Swagger
 
+## ⚠️ Gotcha
+
+**REST URLs should be nouns, not verbs.** \`POST /createUser\` is an RPC-style endpoint disguised as REST. The correct REST design is \`POST /users\` — the HTTP method (POST) already says "create." Mixing verbs into URLs is the most common REST anti-pattern.
+
+**Treating every API as REST is a mistake.** REST is the default for public-facing APIs, but internal microservice-to-microservice communication benefits from gRPC (faster, typed, streaming). Real-time features need WebSockets. Batch data queries may suit GraphQL. Pick the protocol that fits the communication pattern, not the one you know best.
+
 ## 🛠️ Mini-Project
 
 Build a complete API with these requirements:
-- CRUD for two related resources (e.g., users and notes)
-- Authentication (API key or JWT)
-- Rate limiting, input validation, error handling
-- Auto-generated OpenAPI docs
-- Postman collection for testing
+1. CRUD for two related resources (e.g., users and notes) with proper RESTful routes and status codes
+2. Authentication using API key or JWT — protect all write endpoints
+3. Rate limiting (100 requests per minute per IP), input validation with Zod or Joi, and structured error responses
+4. Auto-generated OpenAPI docs using swagger-jsdoc or similar
+5. A Postman collection or test suite that exercises every endpoint including error cases
 
 ## ✅ You've mastered this when…
 
@@ -1140,13 +1172,25 @@ flowchart TD
 
 ## ⌨️ Do This
 
-1. Open browser DevTools → Network tab. Visit a site. Identify: DNS lookup time, TLS handshake time, TTFB, content download.
-2. Run \`dig witbyte.dev\` (or any domain) to see DNS resolution.
-3. Deliberately trigger a CORS error: create a frontend on localhost:3000 that fetches from localhost:5000. Fix it by adding the right headers.
+1. Open browser DevTools → Network tab. Visit a site. Identify: DNS lookup time, TLS handshake time, TTFB, content download
+2. Run \`dig witbyte.dev\` (or any domain) to see DNS resolution — identify the A record and TTL
+3. Deliberately trigger a CORS error: create a frontend on localhost:3000 that fetches from localhost:5000. Fix it by adding the right headers
+4. Use \`curl -v https://example.com\` to observe the TLS handshake and response headers in the terminal
+
+## ⚠️ Gotcha
+
+**CORS errors are not server errors — they are browser security.** Your API works perfectly in Postman and curl but fails from the browser. This confuses developers endlessly. The browser blocks the response, not the server. The fix is always on the server side: add the correct \`Access-Control-Allow-Origin\` header. Never "fix" CORS by disabling browser security or using a proxy in production.
+
+**DNS TTL can bite you during migrations.** When you change a DNS record, the old IP is cached worldwide for the duration of the TTL. If your TTL is 86400 (24 hours), some users will hit the old server for up to a day after you switch. Before a migration, lower the TTL to 300 seconds (5 min) well in advance, then make the switch.
 
 ## 🛠️ Mini-Project
 
-Build a debug checklist tool: a webpage where you input a URL and it reports DNS resolution time, TLS certificate details, HTTP version, response headers, and CORS configuration. Use \`fetch\` + browser APIs.
+Build a network debug checklist tool:
+1. Create a webpage with an input field where you enter a URL
+2. Use \`fetch\` to request the URL and display the response status, headers, and timing (use the Performance API or \`performance.now()\`)
+3. Check and display CORS-related headers (\`Access-Control-Allow-Origin\`, \`Access-Control-Allow-Methods\`)
+4. Display the HTTP version and caching headers (\`Cache-Control\`, \`ETag\`, \`Expires\`)
+5. Add a summary section that flags potential issues (missing CORS headers, no caching, HTTP instead of HTTPS)
 
 ## ✅ You've mastered this when…
 
@@ -1262,14 +1306,20 @@ RBAC covers 90% of needs. Reach for ABAC when you need rules like "managers can 
 3. Add a protected route that requires a valid token
 4. Implement role-based middleware (\`requireRole('admin')\`)
 
+## ⚠️ Gotcha
+
+**JWTs are not a session replacement without careful design.** A JWT cannot be revoked before it expires — there is no server-side state to delete. If a user's account is compromised, you cannot invalidate their token. The solution is short-lived access tokens (15 minutes) paired with refresh tokens stored in an httpOnly cookie. On each refresh, check if the user should still have access.
+
+**Storing JWTs in localStorage is an XSS vulnerability.** Any JavaScript running on your page (including injected scripts from an XSS attack) can read localStorage. Use httpOnly cookies instead — they are not accessible to JavaScript. This is not optional for production systems handling real user data.
+
 ## 🛠️ Mini-Project
 
 Build a complete auth system:
-- Registration with email verification
-- Login with JWT (short-lived access + refresh tokens)
-- "Login with GitHub" via OAuth 2.0
-- RBAC with at least 3 roles (admin, editor, viewer)
-- Protected API routes that check both authentication and authorization
+1. Registration with email verification (send a verification link with a signed token)
+2. Login with JWT — short-lived access tokens (15 min) stored in httpOnly cookies plus refresh tokens with rotation
+3. "Login with GitHub" via OAuth 2.0 Authorization Code flow with PKCE
+4. RBAC with at least 3 roles (admin, editor, viewer) and middleware that checks permissions
+5. Protected API routes that verify both authentication (valid token) and authorization (correct role for the action)
 
 ## ✅ You've mastered this when…
 
@@ -1483,14 +1533,20 @@ test('getUser returns user from database', async () => {
 3. Write an integration test for an API endpoint (use supertest)
 4. Try TDD: write the test first, then make it pass
 
+## ⚠️ Gotcha
+
+**100% code coverage does not mean your code works.** Coverage measures which lines execute, not whether the assertions are meaningful. A test that calls every function but never checks the return value achieves 100% coverage while catching zero bugs. Focus on *meaningful* coverage: test edge cases, error paths, and boundary conditions. 80% meaningful coverage beats 100% shallow coverage.
+
+**Over-mocking makes tests useless.** If you mock the database, the HTTP client, the file system, and the logger, your test only verifies that your mocks behave the way you set them up — it tells you nothing about whether the real system works. Mock external dependencies you do not control (third-party APIs, payment processors), but use real implementations for your own database and services in integration tests.
+
 ## 🛠️ Mini-Project
 
 Add a comprehensive test suite to your API from earlier modules:
-- Unit tests for business logic (validation, calculations)
-- Integration tests for API endpoints (happy path + error cases)
-- Mock the database in unit tests, use a real test DB for integration
-- Set up a test script in package.json
-- Aim for 80%+ meaningful coverage
+1. Write unit tests for all business logic functions (validation, calculations, transformations) — test both happy paths and edge cases
+2. Write integration tests for every API endpoint using supertest — cover success, validation errors, auth failures, and not-found responses
+3. Mock the database in unit tests but use a real test database (Docker + test container) for integration tests
+4. Set up a \`test\` script in package.json and configure coverage reporting with \`--coverage\`
+5. Aim for 80%+ meaningful coverage — verify that the coverage comes from tests with real assertions, not just execution
 
 ## ✅ You've mastered this when…
 
@@ -1752,9 +1808,11 @@ Instrument your API with the three pillars:
 {id:'cs-11',num:'11',title:'Performance & Scalability',hours:12,phase:2,topics:['Caching','Redis','Sharding','Load balancing','Profiling'],
 content:`
 ## 🎯 Goal
-Make systems fast and keep them fast under load. Understand caching strategies, load balancing, database scaling, and how to find bottlenecks.
+Make systems fast and keep them fast under load. Understand caching strategies, load balancing, database scaling, and how to find bottlenecks using profiling tools. In production systems, performance isn not a feature — it is a constraint that shapes every design decision.
 
 ## 🧠 Caching — The Biggest Performance Win
+
+Caching stores a copy of expensive-to-compute or expensive-to-fetch data closer to where it is needed. The impact is dramatic: a Redis lookup takes ~1ms vs ~50ms for a database query vs ~200ms for an external API call.
 
 \`\`\`mermaid
 flowchart LR
@@ -1772,15 +1830,46 @@ flowchart LR
 3. **Application cache** — Redis/Memcached
 4. **Database query cache** — DB-level result caching
 
-**Cache invalidation strategies:**
-- **TTL (time-to-live):** Cache expires after N seconds. Simple but may serve stale data.
-- **Write-through:** Update cache when you update the DB. Consistent but slower writes.
-- **Write-behind:** Update cache immediately, DB later (async). Fast but risky.
-- **Cache-aside:** App checks cache first, loads from DB on miss, writes to cache. Most common.
+### Cache Invalidation Strategies
 
-⚠️ **Gotcha:** "There are only two hard things in computer science: cache invalidation and naming things." — Phil Karlton. This isn't a joke. Stale cache bugs are some of the hardest to debug.
+| Strategy | How it works | Consistency | Write speed | Best for |
+|----------|-------------|-------------|-------------|----------|
+| **TTL** | Cache expires after N seconds | Stale within window | Fast | Rarely-changing data |
+| **Write-through** | Update cache + DB together | Strong | Slower | Read-heavy, consistency-critical |
+| **Write-behind** | Update cache now, DB async | Eventual | Fastest | High-write throughput |
+| **Cache-aside** | App manages cache manually | App-controlled | Medium | Most common pattern |
+
+### Redis in Practice
+
+\`\`\`javascript
+const Redis = require('ioredis');
+const redis = new Redis();
+
+// Cache-aside pattern
+async function getUser(userId) {
+  // 1. Check cache
+  const cached = await redis.get(\\\`user:\${userId}\\\`);
+  if (cached) return JSON.parse(cached);
+
+  // 2. Cache miss — fetch from DB
+  const user = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+
+  // 3. Store in cache with TTL (1 hour)
+  await redis.set(\\\`user:\${userId}\\\`, JSON.stringify(user), 'EX', 3600);
+
+  return user;
+}
+
+// Invalidate on update
+async function updateUser(userId, data) {
+  await db.query('UPDATE users SET name = $1 WHERE id = $2', [data.name, userId]);
+  await redis.del(\\\`user:\${userId}\\\`); // Invalidate cache
+}
+\`\`\`
 
 ## 🧠 Load Balancing
+
+A load balancer distributes incoming traffic across multiple server instances so no single server becomes a bottleneck.
 
 \`\`\`mermaid
 flowchart TD
@@ -1790,13 +1879,20 @@ flowchart TD
     LB --> S3[Server 3]
 \`\`\`
 
-**Algorithms:** Round-robin (simple rotation), least connections (send to least busy), IP hash (sticky sessions), weighted (send more to stronger servers).
+| Algorithm | How it works | Best for |
+|-----------|-------------|----------|
+| **Round-robin** | Rotate through servers | Equal-capacity servers |
+| **Least connections** | Send to least busy | Varying request complexity |
+| **IP hash** | Same client goes to same server | Sticky sessions |
+| **Weighted** | More traffic to stronger servers | Mixed-capacity fleet |
+
+**Health checks** are critical: the load balancer pings each server (e.g., \`GET /health\` every 10s). Unhealthy servers are removed from rotation automatically.
 
 ## 🧠 Database Scaling
 
 **Vertical scaling:** Bigger machine (more RAM, faster CPU). Simple but has a ceiling.
 
-**Horizontal scaling — Read replicas:** Write to primary, read from replicas.
+**Horizontal scaling — Read replicas:** Write to primary, read from replicas. Replication lag means replicas may be slightly behind.
 
 \`\`\`mermaid
 flowchart TD
@@ -1807,37 +1903,117 @@ flowchart TD
     App --> R2
 \`\`\`
 
-**Sharding:** Split data across multiple databases by a shard key (e.g., user ID).
+### Sharding — Splitting Data Horizontally
+
+Sharding distributes rows across multiple databases by a shard key. Choose the shard key carefully — it determines data distribution and which queries can be answered by a single shard.
+
+\`\`\`mermaid
+flowchart TD
+    App[Application] --> Router[Shard Router]
+    Router -->|user_id 1-1M| S1[(Shard 1)]
+    Router -->|user_id 1M-2M| S2[(Shard 2)]
+    Router -->|user_id 2M-3M| S3[(Shard 3)]
+\`\`\`
+
+**Shard key pitfalls:** If you shard by user ID and one user generates 90% of the data (a "hot shard"), your scaling breaks down. In production, teams use consistent hashing to distribute more evenly and simplify resharding.
+
+## 🧠 Profiling — Finding the Bottleneck
+
+Never optimize without measuring first. Profiling identifies *where* time is spent.
+
+\`\`\`mermaid
+flowchart LR
+    R[Request 450ms total] --> A[Route handler<br/>5ms]
+    A --> B[Auth check<br/>10ms]
+    B --> C[DB query 1<br/>15ms]
+    C --> D[DB query 2 x50<br/>380ms N+1!]
+    D --> E[Serialize<br/>40ms]
+\`\`\`
+
+**The N+1 query problem** is the most common backend performance issue:
+
+\`\`\`javascript
+// BAD — N+1: 1 query for posts + N queries for authors
+const posts = await db.query('SELECT * FROM posts LIMIT 50');
+for (const post of posts) {
+  post.author = await db.query('SELECT * FROM users WHERE id = $1', [post.user_id]);
+  // This fires 50 separate queries!
+}
+
+// GOOD — 2 queries total using a JOIN
+const posts = await db.query(\\\`
+  SELECT p.*, u.name as author_name
+  FROM posts p
+  JOIN users u ON p.user_id = u.id
+  LIMIT 50
+\\\`);
+\`\`\`
+
+**Profiling tools by layer:**
+- **Application:** Node.js \`--inspect\` + Chrome DevTools (CPU and memory), Python \`cProfile\`
+- **Database:** \`EXPLAIN ANALYZE\` for query plans, \`pg_stat_statements\` for slow-query logs
+- **Network:** Browser DevTools waterfall, \`curl -w\` for timing breakdown
+- **System:** \`htop\` (CPU/memory), \`iostat\` (disk I/O), \`netstat\` (connections)
+
+## 🧠 Connection Pooling
+
+Opening a database connection takes ~20-50ms (TCP handshake + auth). A connection pool maintains reusable connections.
+
+\`\`\`javascript
+const { Pool } = require('pg');
+const pool = new Pool({
+  max: 20,           // Maximum connections in pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+// Connections are borrowed and returned automatically
+const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+\`\`\`
+
+In production systems, exhausting your connection pool is a common failure mode — set \`max\` based on your database connection limit divided by the number of app instances.
 
 ## ⌨️ Do This
 
-1. Add Redis caching to your API (cache expensive DB queries)
-2. Implement cache-aside pattern with TTL
-3. Profile your app: find the slowest endpoint and optimize it
-4. Load test with \`k6\` or \`autocannon\`
+1. Add Redis caching to your API — cache an expensive query with the cache-aside pattern and a 5-minute TTL
+2. Introduce a deliberate N+1 query, measure it with \`EXPLAIN ANALYZE\`, then fix it with a JOIN
+3. Profile your app with Node.js \`--inspect\` — find the slowest function and optimize it
+4. Load test with \`k6\` or \`autocannon\` — record baseline p50 and p99 latencies, then optimize and re-measure
+5. Add connection pooling and compare response times with and without it
+
+## ⚠️ Gotcha
+
+**Caching can create consistency nightmares.** A common bug: you cache user data, the user updates their profile, but the cache still holds the old version for 30 minutes. Multiply this across dozens of cached entities and you get a system where users see stale data unpredictably. Always have a clear invalidation strategy, and log cache hit/miss ratios so you know when caching is actually helping.
+
+**Premature optimization hides the real bottleneck.** Developers add Redis before profiling and discover no improvement — because the bottleneck was an N+1 query doing 500 database roundtrips, not individual query speed. Always profile first: measure where time is spent, then optimize that specific path. The fix for an N+1 problem is a JOIN, not a cache.
+
+**Sharding is a one-way door.** Once you shard, cross-shard queries (JOINs across shards) become either impossible or extremely expensive. Before sharding, exhaust simpler options: read replicas, better indexes, caching, query optimization. In production, most teams do not need sharding until well past 1TB of data.
 
 ## 🛠️ Mini-Project
 
 Performance optimization challenge:
-- Start with a deliberately slow API (N+1 queries, no caching, no pagination)
-- Measure baseline performance with k6 load testing
-- Optimize: add caching (Redis), fix N+1 queries, add DB indexes, add pagination
-- Measure again — target 10x improvement in p99 latency
-- Document every change and its measured impact
+1. Start with a deliberately slow API: include N+1 queries, no caching, no pagination, unindexed columns, and no connection pooling
+2. Measure baseline performance with k6 load testing — record p50, p95, and p99 latencies under 100 concurrent users
+3. Fix N+1 queries with JOINs and measure the improvement
+4. Add database indexes on frequently-queried columns and verify with \`EXPLAIN ANALYZE\`
+5. Add Redis caching (cache-aside with TTL) for the most expensive endpoint
+6. Add connection pooling and pagination
+7. Run the same k6 test again — target 10x improvement in p99 latency and document every change with its measured impact
 
 ## ✅ You've mastered this when…
 
-- You implement caching with proper invalidation
-- You can explain read replicas and sharding trade-offs
-- You know load balancing algorithms and when to use each
-- You can profile an application and find the bottleneck
-- You've measured a performance improvement with real load testing data
+- You implement caching with a clear invalidation strategy and can explain the trade-offs of TTL vs write-through
+- You can identify and fix N+1 queries without being told they exist
+- You can explain read replicas vs sharding and when each is appropriate
+- You know load balancing algorithms and can pick the right one for a given scenario
+- You have profiled a real application, found the bottleneck, and measured the improvement with load testing data
+- You understand connection pooling and why exhausting it causes cascading failures
 `},
 
 {id:'cs-12',num:'12',title:'Production Issues & Debugging',hours:10,phase:2,topics:['Debugging','Postmortems','Feature flags','Canary','Rollback'],
 content:`
 ## 🎯 Goal
-When production breaks — and it will — diagnose the problem, fix it, and make sure it doesn't happen the same way again.
+When production breaks — and it will — diagnose the problem, fix it, and make sure it doesn't happen the same way again. Build a systematic debugging methodology so you stay calm under pressure instead of guessing randomly.
 
 ## 🧠 Common Production Failures
 
@@ -1851,10 +2027,52 @@ flowchart TD
 \`\`\`
 
 ### Memory Leaks
+
 Symptoms: Memory usage grows over time, eventually OOM kill. Common causes: unclosed connections, growing caches without eviction, event listeners never removed, global variable accumulation.
 
+\`\`\`javascript
+// Common memory leak: event listeners never removed
+class UserTracker {
+  constructor() {
+    this.users = new Map();
+  }
+
+  track(socket) {
+    // BAD — listener is never cleaned up when user disconnects
+    socket.on('data', (msg) => {
+      this.users.set(socket.id, msg); // Map grows forever
+    });
+  }
+
+  // GOOD — clean up on disconnect
+  trackProperly(socket) {
+    const handler = (msg) => this.users.set(socket.id, msg);
+    socket.on('data', handler);
+    socket.on('close', () => {
+      this.users.delete(socket.id);
+      socket.removeListener('data', handler);
+    });
+  }
+}
+\`\`\`
+
 ### Cascading Failures
-One service slows down → callers pile up waiting → their callers pile up → everything fails.
+
+One service slows down then callers pile up waiting then their callers pile up then everything fails. In production, this is the most dangerous failure mode because it turns a single-service problem into a system-wide outage.
+
+\`\`\`mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Service A
+    participant B as Service B (slow)
+    C->>A: Request
+    A->>B: Call (timeout: 30s)
+    Note over A: Thread blocked waiting...
+    Note over A: 100 more requests arrive
+    Note over A: Thread pool exhausted!
+    C->>A: Request
+    A-->>C: 503 Service Unavailable
+\`\`\`
 
 **Fix — Circuit Breaker pattern:**
 
@@ -1869,6 +2087,49 @@ stateDiagram-v2
 
 When a downstream service fails repeatedly, stop calling it (circuit opens). Periodically try again (half-open). If it works, resume (close).
 
+\`\`\`javascript
+const CircuitBreaker = require('opossum');
+
+const options = {
+  timeout: 3000,       // If function takes longer, trigger a failure
+  errorThresholdPercentage: 50,  // Open circuit if 50% of requests fail
+  resetTimeout: 10000  // Try again after 10 seconds
+};
+
+const breaker = new CircuitBreaker(callExternalService, options);
+
+breaker.fallback(() => ({ status: 'degraded', data: cachedData }));
+breaker.on('open', () => console.log('Circuit opened — using fallback'));
+breaker.on('halfOpen', () => console.log('Circuit half-open — probing'));
+
+const result = await breaker.fire(requestParams);
+\`\`\`
+
+## 🧠 Systematic Debugging Methodology
+
+When production breaks at 3 AM, follow a method instead of guessing:
+
+\`\`\`mermaid
+flowchart TD
+    A[Alert fires] --> B[Check dashboards<br/>What changed?]
+    B --> C{Recent deploy?}
+    C -->|Yes| D[Rollback first<br/>Investigate later]
+    C -->|No| E[Check logs for errors]
+    E --> F[Narrow scope:<br/>Which service? Which endpoint?]
+    F --> G[Reproduce locally<br/>or read traces]
+    G --> H[Fix + write test]
+    H --> I[Deploy fix + write postmortem]
+\`\`\`
+
+**Key principle: Rollback first, debug second.** If a recent deploy correlates with the outage, roll it back immediately. You can debug the root cause after users stop being affected. Every minute spent debugging before rolling back is a minute of user impact.
+
+**Debugging checklist for any production issue:**
+1. What changed? (deploy, config change, traffic spike, dependency outage)
+2. What do the metrics show? (error rate, latency, saturation)
+3. What do the logs say? (filter by time window + error level)
+4. Which component is affected? (trace the request path)
+5. Can you reproduce it? (locally or in staging)
+
 ## 🧠 Feature Flags
 
 Deploy code to production without exposing it to all users:
@@ -1881,7 +2142,36 @@ if (featureFlags.isEnabled('new-checkout', { userId })) {
 }
 \`\`\`
 
-**Use for:** Gradual rollouts (1% → 10% → 50% → 100%), A/B testing, kill switches, beta features for specific users.
+**Use for:** Gradual rollouts (1% then 10% then 50% then 100%), A/B testing, kill switches, beta features for specific users.
+
+### Rollout Strategies
+
+| Strategy | How it works | Risk level | Best for |
+|----------|-------------|------------|----------|
+| **Big bang** | 0% to 100% at once | High | Small, low-risk changes |
+| **Canary** | 1-5% of traffic first | Low | Risky changes, new features |
+| **Ring-based** | Internal then beta then GA | Medium | Major features |
+| **Per-user** | Specific user IDs or segments | Lowest | Beta testing |
+
+## 🧠 Rollback Strategies
+
+\`\`\`mermaid
+flowchart LR
+    subgraph "Instant rollback"
+        A[Revert deploy to<br/>previous version]
+    end
+    subgraph "Feature flag"
+        B[Disable flag<br/>code stays deployed]
+    end
+    subgraph "Database rollback"
+        C[Run down migration<br/>may lose data!]
+    end
+    A --> |Safest| R[Recovery]
+    B --> |Fastest| R
+    C --> |Riskiest| R
+\`\`\`
+
+In production systems, your CI/CD pipeline should make rollback a one-click operation. If rolling back requires more than 5 minutes, your deployment process needs work.
 
 ## 🧠 Postmortems — Blameless Learning
 
@@ -1892,39 +2182,74 @@ After every significant incident:
 4. **Contributing factors:** What made it worse or harder to detect
 5. **Action items:** Specific, assigned fixes to prevent recurrence
 
-⚠️ **Gotcha:** "Human error" is never a root cause. Humans make mistakes — the system should catch them. The root cause is whatever allowed the mistake to reach production.
+**Example postmortem excerpt:**
+
+\`\`\`
+Title: API latency spike — 2026-08-15
+Duration: 47 minutes (14:23 - 15:10 UTC)
+Impact: p99 latency increased from 200ms to 8s. ~12% of requests timed out.
+
+Timeline:
+- 14:20 — Deploy v2.4.1 (new search endpoint)
+- 14:23 — Alerts fire: p99 latency > 2s
+- 14:30 — On-call investigates: search endpoint doing full table scan
+- 14:35 — Decision: rollback v2.4.1
+- 14:40 — Rollback deployed
+- 15:10 — Latency back to normal
+
+Root cause: New search query lacked a WHERE clause index.
+Missing index caused full table scan on 50M row table.
+
+Action items:
+- [P0] Add index on search columns (owner: backend team)
+- [P1] Add query plan review to PR checklist
+- [P1] Add latency alert threshold at p99 > 500ms
+\`\`\`
 
 ## ⌨️ Do This
 
-1. Implement a circuit breaker in your app (use Opossum for Node.js)
-2. Add feature flags (use Unleash or a simple in-memory implementation)
-3. Practice debugging: deliberately introduce a memory leak, find it with Node.js \`--inspect\` and Chrome DevTools
-4. Write a postmortem template for your team
+1. Implement a circuit breaker in your app using Opossum — configure timeout, error threshold, and a fallback response
+2. Add feature flags with a simple in-memory implementation that supports per-user targeting and percentage rollout
+3. Practice debugging: deliberately introduce a memory leak (e.g., an ever-growing Map), find it with Node.js \`--inspect\` and Chrome DevTools heap snapshot
+4. Write a postmortem template for your team with sections for timeline, impact, root cause, and action items
+5. Add a one-command rollback to your CI/CD pipeline (e.g., \`npm run rollback\` redeploys the previous version)
+
+## ⚠️ Gotcha
+
+**"Human error" is never a root cause.** Humans make mistakes — the system should catch them. If a developer deployed a bad config and it caused an outage, the root cause is not "the developer made a mistake." The root cause is "the deployment pipeline has no config validation step" or "there is no canary deployment to catch bad configs before full rollout." Fix the system, not the human.
+
+**Feature flags create technical debt if you never clean them up.** Every feature flag adds a code path that must be tested. In production, teams accumulate dozens of flags, some for features fully rolled out months ago. Establish a rule: once a flag reaches 100% and has been stable for two weeks, remove it. Track flag age in your codebase and alert on flags older than 30 days.
+
+**Rollbacks with database migrations are dangerous.** Rolling back application code is straightforward, but if the deploy included a database migration (adding a column, changing a type), rolling back the code without rolling back the schema can break things. Practice "expand-contract" migrations: add the new column first, deploy code that writes to both old and new, then remove the old column in a later deploy.
 
 ## 🛠️ Mini-Project
 
 Production resilience drill:
-- Add circuit breakers around external service calls
-- Implement feature flags with gradual rollout capability
-- Create a runbook: "API is returning 500 errors" with diagnostic steps
-- Simulate an incident, follow your runbook, write a postmortem
-- Add automated rollback to your CI/CD pipeline
+1. Add circuit breakers around at least two external service calls with appropriate timeout and threshold settings
+2. Implement feature flags with gradual rollout capability — support percentage-based rollout and per-user targeting
+3. Create a runbook document: "API is returning 500 errors" with step-by-step diagnostic instructions (check metrics, filter logs, identify affected endpoint, check recent deploys)
+4. Simulate a production incident — introduce a deliberate failure, follow your runbook, time how long it takes to diagnose
+5. Write a blameless postmortem for the simulated incident with timeline, root cause, and at least 3 action items
+6. Add automated rollback to your CI/CD pipeline: if the health check fails after deploy, automatically redeploy the previous version
 
 ## ✅ You've mastered this when…
 
-- You can diagnose memory leaks, N+1 queries, and cascading failures
-- You implement circuit breakers for external dependencies
-- You use feature flags for safe deployments
-- You write blameless postmortems with actionable items
-- You have rollback strategies and know when to use them
+- You can diagnose memory leaks, N+1 queries, and cascading failures using profiling tools
+- You implement circuit breakers with fallback responses for external dependencies
+- You use feature flags for safe gradual rollouts and know when to clean them up
+- You follow a systematic debugging methodology instead of guessing
+- You write blameless postmortems with actionable items that fix the system, not blame the person
+- You have rollback strategies tested and ready, and know the risks of rolling back with database migrations
 `},
 
 {id:'cs-13',num:'13',title:'Cloud & Infrastructure',hours:12,phase:2,topics:['AWS','GCP','Serverless','VPC','IAM','Terraform'],
 content:`
 ## 🎯 Goal
-Navigate AWS/GCP/Azure service catalogs without drowning. Understand compute, storage, networking, and IAM at a level where you can architect and deploy real systems.
+Navigate AWS/GCP/Azure service catalogs without drowning. Understand compute, storage, networking, and IAM at a level where you can architect and deploy real systems. Know when to use VMs, containers, or serverless, and manage infrastructure as code with Terraform.
 
 ## 🧠 Cloud Service Map
+
+The major cloud providers offer dozens of services, but they map to the same fundamental categories:
 
 \`\`\`mermaid
 flowchart TD
@@ -1951,6 +2276,16 @@ flowchart TD
     end
 \`\`\`
 
+### Choosing a Compute Model
+
+| Model | Startup time | Scaling | Cost model | Best for |
+|-------|-------------|---------|------------|----------|
+| **VMs (EC2/GCE)** | Minutes | Manual or auto-scaling groups | Per-hour | Legacy apps, full OS control |
+| **Containers (ECS/GKE)** | Seconds | Kubernetes autoscaler | Per-second | Microservices, consistent environments |
+| **Serverless (Lambda)** | Cold: 200ms-2s | Automatic, per-request | Per-invocation | Event processing, APIs with spiky traffic |
+
+In production, most teams use a mix: containers for the main application, serverless for background jobs and webhooks, VMs for specialized workloads.
+
 ## 🧠 VPC — Your Private Network
 
 A VPC (Virtual Private Cloud) is an isolated network where your resources live. You control:
@@ -1967,59 +2302,158 @@ flowchart TD
     NAT --> Internet
 \`\`\`
 
+### Security Groups vs Network ACLs
+
+| | Security Groups | Network ACLs |
+|---|----------------|--------------|
+| Level | Instance-level (ENI) | Subnet-level |
+| Rules | Allow only (implicit deny) | Allow and deny |
+| State | Stateful (return traffic auto-allowed) | Stateless (must allow both directions) |
+| Use | Primary firewall — use for everything | Secondary layer for subnet-wide rules |
+
+\`\`\`
+# Example: Security group for a web server
+Inbound rules:
+  - Port 443 (HTTPS) from 0.0.0.0/0    (public access)
+  - Port 22 (SSH) from 10.0.0.0/16      (VPC only)
+
+Outbound rules:
+  - Port 5432 to sg-database             (DB security group)
+  - Port 443 to 0.0.0.0/0               (external APIs)
+\`\`\`
+
 ## 🧠 IAM — Principle of Least Privilege
 
 Every service, user, and role should have the minimum permissions needed. IAM policies define who can do what on which resources.
 
 **The mental model:** Subject (who) + Action (what) + Resource (which) + Condition (when) = Allow or Deny.
 
+\`\`\`json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "s3:GetObject",
+      "s3:PutObject"
+    ],
+    "Resource": "arn:aws:s3:::my-app-uploads/*",
+    "Condition": {
+      "StringEquals": {
+        "aws:RequestedRegion": "us-east-1"
+      }
+    }
+  }]
+}
+\`\`\`
+
+**IAM anti-patterns to avoid:**
+- \`"Action": "*"\` on \`"Resource": "*"\` — gives full access to everything
+- Sharing IAM credentials between services — each service gets its own role
+- Long-lived access keys — use IAM roles with temporary credentials instead
+
+## 🧠 Infrastructure as Code with Terraform
+
+Terraform lets you define infrastructure in declarative config files, version-control them, and apply changes through a predictable workflow.
+
+\`\`\`mermaid
+flowchart LR
+    W[Write .tf files] --> P[terraform plan<br/>Preview changes]
+    P --> A[terraform apply<br/>Create resources]
+    A --> S[State file<br/>Tracks what exists]
+    S -.->|next change| W
+\`\`\`
+
+\`\`\`hcl
+# main.tf — Deploy a web app with a load balancer
+resource "aws_lb" "web" {
+  name               = "web-alb"
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  security_groups    = [aws_security_group.alb.id]
+}
+
+resource "aws_ecs_service" "app" {
+  name            = "web-app"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.app.arn
+  desired_count   = 3
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app.arn
+    container_name   = "app"
+    container_port   = 3000
+  }
+}
+\`\`\`
+
+**Key Terraform concepts:**
+- **State file:** Tracks which real resources correspond to your config. Store remotely (S3 + DynamoDB locking) for team use.
+- **Modules:** Reusable building blocks — e.g., a "VPC module" that creates subnets, route tables, and gateways.
+- **Plan before apply:** Always run \`terraform plan\` to preview changes. Never apply blindly.
+
 ## 🧠 Cost Optimization
 
-Cloud bills spiral when nobody watches:
-- Use reserved instances or savings plans for steady workloads (40-70% savings)
-- Auto-scaling: scale down during low traffic
-- Right-size instances: most are overprovisioned
-- Spot/preemptible instances for batch jobs (up to 90% savings)
-- Set up billing alerts before you get surprised
+Cloud bills spiral when nobody watches. In production, teams regularly discover they are paying 3-5x more than necessary.
+
+- **Reserved instances / savings plans** for steady workloads (40-70% savings)
+- **Auto-scaling:** Scale down during low traffic, scale up for peaks
+- **Right-sizing:** Most instances are overprovisioned — monitor CPU/memory and downsize
+- **Spot/preemptible instances** for batch jobs (up to 90% savings, but can be reclaimed)
+- **Billing alerts:** Set up before you get surprised — a misconfigured auto-scaler can cost thousands overnight
+
+| Strategy | Savings | Risk | Commitment |
+|----------|---------|------|------------|
+| **On-demand** | Baseline | None | None |
+| **Reserved / Savings Plans** | 40-70% | Lock-in | 1-3 years |
+| **Spot / Preemptible** | Up to 90% | Interruption | None |
+| **Right-sizing** | 20-50% | Under-provisioning | Ongoing monitoring |
 
 ## ⌨️ Do This
 
 1. Deploy your Dockerized app to a free cloud tier (AWS Free Tier, GCP Free Tier, or Railway)
-2. Set up a VPC with public and private subnets
-3. Create IAM roles with least-privilege policies
-4. Write a Terraform config that deploys your app
+2. Set up a VPC with public and private subnets — put a load balancer in public, your app in private
+3. Create IAM roles with least-privilege policies for your application — no wildcard permissions
+4. Write a Terraform config that provisions your app's infrastructure, and run \`terraform plan\` to preview
+5. Set up a billing alert at $10/month and review your cost breakdown after one week
+
+## ⚠️ Gotcha
+
+**"Serverless" does not mean "no servers."** It means you do not manage the servers — the cloud provider does. You still pay for compute time, you still have cold start latency (200ms-2s for AWS Lambda), and you still need to handle concurrency limits, timeouts, and memory constraints. Serverless is great for bursty workloads; it is expensive for steady-state high-throughput. In production, a Lambda function that runs constantly is usually cheaper rewritten as a container.
+
+**IAM is the most critical security layer in cloud, and the most neglected.** Over-permissive IAM policies (e.g., \`*\` permissions on \`*\` resources) are the root cause of most cloud security breaches. Follow least privilege ruthlessly: each service gets only the specific permissions it needs, on only the specific resources it accesses. Audit IAM policies quarterly.
+
+**Terraform state is a single point of failure.** If you lose the state file, Terraform does not know what resources exist — you cannot manage or destroy them. Never store state locally for team projects. Use a remote backend (S3 + DynamoDB for locking) and enable state file versioning so you can recover from corruption.
 
 ## 🛠️ Mini-Project
 
 Deploy a production-like setup:
-- VPC with public/private subnets
-- Load balancer in public subnet → App in private subnet → DB in private subnet
-- IAM roles for each component
-- Infrastructure defined in Terraform
-- Estimated monthly cost breakdown
-
-## ⚠️ Gotcha
-
-**"Serverless" doesn't mean "no servers."** It means you don't manage the servers — the cloud provider does. You still pay for compute time, you still have cold start latency (200ms–2s for AWS Lambda), and you still need to handle concurrency limits, timeouts, and memory constraints. Serverless is great for bursty workloads; it's expensive for steady-state high-throughput.
-
-**IAM is the most critical security layer in cloud, and the most neglected.** Over-permissive IAM policies (e.g., \`*\` permissions on \`*\` resources) are the root cause of most cloud security breaches. Follow least privilege ruthlessly: each service gets only the specific permissions it needs, on only the specific resources it accesses.
-
+1. Create a VPC with two public subnets and two private subnets across two availability zones
+2. Set up an Application Load Balancer in the public subnets routing to your app in private subnets
+3. Deploy a PostgreSQL database in the private subnet with a security group that only allows connections from the app
+4. Create IAM roles for each component — the app role can read S3 and connect to the database, nothing else
+5. Define all infrastructure in Terraform with a remote state backend
+6. Estimate the monthly cost using the AWS/GCP pricing calculator and document the breakdown
+7. Add auto-scaling rules: scale up when CPU exceeds 70%, scale down when below 30%
 
 ## ✅ You've mastered this when…
 
-- You can navigate AWS/GCP service catalog and pick the right service
-- You understand VPCs, subnets, and security groups
-- You apply least-privilege IAM policies
-- You can estimate cloud costs and identify waste
-- You've written Terraform that provisions real infrastructure
+- You can navigate the AWS/GCP service catalog and pick the right compute, storage, and networking service for a workload
+- You understand VPCs, subnets, security groups, and can design a network with public and private tiers
+- You apply least-privilege IAM policies and can audit existing policies for over-permissions
+- You can estimate cloud costs, identify waste, and explain the trade-offs of reserved vs spot instances
+- You have written Terraform that provisions real infrastructure and used \`terraform plan\` before applying
+- You understand remote state management and why the state file must be versioned and locked
 `},
 
 {id:'cs-14',num:'14',title:'System Design',hours:14,phase:2,topics:['Capacity planning','Trade-offs','Distributed systems','CAP theorem'],
 content:`
 ## 🎯 Goal
-Design scalable systems from scratch. Handle system design questions by thinking in requirements → components → data flow → bottlenecks.
+Design scalable systems from scratch. Handle system design challenges by thinking systematically: requirements then components then data flow then bottlenecks. Develop the judgment to articulate trade-offs rather than defaulting to buzzword architectures.
 
 ## 🧠 The System Design Framework
+
+Every system design follows the same flow. Resist the urge to jump to components — start with requirements.
 
 \`\`\`mermaid
 flowchart LR
@@ -2029,13 +2463,30 @@ flowchart LR
     BN --> TO[Trade-offs<br/>Consistency vs availability<br/>Cost vs performance]
 \`\`\`
 
+### Functional vs Non-Functional Requirements
+
+| Type | Examples | Why it matters |
+|------|----------|----------------|
+| **Functional** | Users can send messages, create posts, upload images | What the system *does* |
+| **Non-functional** | 99.9% uptime, p99 latency under 200ms, handle 10K req/s | How the system *performs* |
+| **Constraints** | Budget, team size, compliance, existing tech stack | What limits your choices |
+
+Always ask: "What are we optimizing for?" A system optimized for read throughput looks very different from one optimized for write consistency.
+
 ### Back-of-Envelope Estimation
 
-Before designing, estimate the scale:
-- **Users:** 10M monthly active users
-- **Requests:** ~400 req/sec average, ~1200 req/sec peak
+Before designing, estimate the scale. These numbers shape every decision:
+
+- **Users:** 10M monthly active users, 1M daily active
+- **Requests:** ~400 req/sec average, ~1200 req/sec peak (3x rule)
 - **Storage:** If each user generates 1KB/day → 10TB/year
-- **Bandwidth:** 400 req/s × 10KB avg response = 4 MB/s
+- **Bandwidth:** 400 req/s x 10KB avg response = 4 MB/s
+
+**Useful constants for estimation:**
+- 1 day = ~86,400 seconds (~100K for quick math)
+- 1 month = ~2.5M seconds
+- 1 server handles ~1K-10K concurrent connections (depends on workload)
+- SSD random read: ~0.1ms; HDD: ~10ms; network round-trip: ~1-100ms
 
 ### CAP Theorem
 
@@ -2053,7 +2504,55 @@ flowchart TD
     AP[AP Systems<br/>Cassandra, DynamoDB] -.-> A & P
 \`\`\`
 
-In practice, network partitions happen — you're choosing between consistency and availability during a partition.
+In practice, network partitions happen — you are choosing between consistency and availability during a partition.
+
+## 🧠 Consistency Patterns
+
+Different parts of your system can make different consistency trade-offs:
+
+\`\`\`mermaid
+flowchart LR
+    subgraph "Strong Consistency"
+        A[Bank transfers<br/>Inventory counts<br/>User auth]
+    end
+    subgraph "Eventual Consistency"
+        B[Like counts<br/>News feeds<br/>Analytics]
+    end
+    subgraph "Causal Consistency"
+        C[Chat messages<br/>Comment threads<br/>Social posts]
+    end
+\`\`\`
+
+| Pattern | Guarantee | Latency | Use when |
+|---------|-----------|---------|----------|
+| **Strong** | Read always returns latest write | Higher (coordination) | Financial transactions, auth |
+| **Eventual** | Read will *eventually* return latest | Lowest | Counters, feeds, analytics |
+| **Causal** | Respects cause-and-effect ordering | Medium | Chat, comments, timelines |
+
+In production, most systems use a mix. Your checkout page needs strong consistency for inventory. Your social feed can tolerate eventual consistency for like counts.
+
+## 🧠 Common Building Blocks
+
+Most systems are assembled from a small set of proven components:
+
+\`\`\`mermaid
+flowchart TD
+    LB[Load Balancer] --> APP[Application Servers]
+    APP --> CACHE[(Cache<br/>Redis)]
+    APP --> DB[(Database<br/>PostgreSQL)]
+    APP --> MQ[Message Queue<br/>Kafka/SQS]
+    MQ --> WORKER[Workers<br/>Background jobs]
+    APP --> OBJ[Object Storage<br/>S3]
+    APP --> SEARCH[Search Index<br/>Elasticsearch]
+    CDN[CDN] --> OBJ
+\`\`\`
+
+**When to introduce each component:**
+- **Cache:** When read latency matters and data does not change every request
+- **Message queue:** When you need to decouple producers from consumers (async processing)
+- **Search index:** When your queries go beyond what SQL can handle efficiently (full-text search, fuzzy matching)
+- **Object storage:** For files, images, videos — anything too large for a database
+- **CDN:** For static assets and content served to global users
 
 ## 🧠 Design Exercise: URL Shortener
 
@@ -2073,46 +2572,72 @@ flowchart TD
 - **ID generation:** Base62 encoding of auto-increment ID or hash? (hash risks collisions)
 - **Caching:** Cache the top 20% of URLs (Pareto principle) — covers 80% of redirects
 - **Database:** Shard by short URL hash for horizontal scaling
-- **Analytics:** Async (message queue) so redirects aren't slowed by analytics writes
+- **Analytics:** Async (message queue) so redirects are not slowed by analytics writes
+
+## 🧠 Design Exercise: Chat System
+
+**Requirements:** Real-time messaging, channels, message history, online status, 500K concurrent users.
+
+\`\`\`mermaid
+flowchart TD
+    C1[Client] & C2[Client] -->|WebSocket| GW[WebSocket Gateway]
+    GW --> CS[Chat Service]
+    CS --> MQ[Message Queue<br/>Fan-out to channels]
+    CS --> DB[(Message Store<br/>Partitioned by channel)]
+    CS --> PS[Presence Service]
+    PS --> Redis[(Redis<br/>Online status)]
+    MQ --> GW
+\`\`\`
+
+**Key decisions:**
+- **WebSockets** for real-time delivery — HTTP polling wastes bandwidth at this scale
+- **Message ordering:** Per-channel ordering via partition key; global ordering is unnecessary and expensive
+- **Fan-out:** When a message is sent to a 1000-member channel, the message queue handles delivery to each connected client
+- **Storage:** Partition messages by channel ID and time range for efficient retrieval
+- **Presence:** Redis with TTL-based heartbeats — if no heartbeat in 30s, mark offline
 
 ## ⌨️ Do This
 
-Practice designing 3 systems (spend 45 minutes each):
-1. **Chat system** (like Slack) — real-time messaging, channels, message history
-2. **Notification service** — email, push, SMS; templating, rate limiting, preferences
-3. **Rate limiter** — fixed window, sliding window, or token bucket
+Practice designing 4 systems (spend 45 minutes each):
+1. **Chat system** (like Slack) — real-time messaging, channels, message history, presence
+2. **Notification service** — email, push, SMS; templating, rate limiting, user preferences
+3. **Rate limiter** — compare fixed window, sliding window, and token bucket algorithms
+4. **File storage service** (like Dropbox) — upload, download, share, versioning, deduplication
 
-For each: requirements → diagram → database schema → scaling strategy → trade-offs.
+For each: list requirements then draw the diagram then design the database schema then identify the scaling strategy then articulate trade-offs.
 
 ## 🛠️ Mini-Project
 
 Pick one of the designs above and build a working prototype:
-- Focus on the core data flow, not the polish
-- Implement the database schema
-- Build the key API endpoints
-- Add caching for the hot path
-- Document the architecture decisions and trade-offs you made
+1. Write down functional and non-functional requirements with specific numbers (e.g., "support 1000 concurrent users, p99 latency under 500ms")
+2. Draw the architecture diagram showing all components and data flow
+3. Design and implement the database schema with appropriate indexes
+4. Build the key API endpoints for the core user flow
+5. Add caching for the hot path and measure the improvement
+6. Document every architecture decision and the trade-off you considered (e.g., "chose PostgreSQL over DynamoDB because we need JOIN queries for the analytics dashboard; trade-off is manual sharding if we exceed 1TB")
 
 ## ⚠️ Gotcha
 
-**CAP theorem is often misunderstood.** It's not "pick two of three." In reality, network partitions are inevitable — you don't choose to have them. CAP says: when a partition happens, you must choose between consistency (every read sees the latest write) and availability (every request gets a response). Most systems choose "AP with eventual consistency" (DynamoDB, Cassandra) or "CP with unavailability during partitions" (traditional RDBMS with synchronous replication).
+**CAP theorem is often misunderstood.** It is not "pick two of three." In reality, network partitions are inevitable — you do not choose to have them. CAP says: when a partition happens, you must choose between consistency (every read sees the latest write) and availability (every request gets a response). Most systems choose "AP with eventual consistency" (DynamoDB, Cassandra) or "CP with unavailability during partitions" (traditional RDBMS with synchronous replication).
 
-**Premature scaling is the graveyard of startups.** Building a system that handles 10 million users when you have 100 is wasted engineering. Design so that components can be replaced when you need to scale, but don't build the scaled version until the metrics demand it. Monolith first, microservices when you've earned the complexity.
+**Premature scaling is the graveyard of startups.** Building a system that handles 10 million users when you have 100 is wasted engineering. Design so that components can be replaced when you need to scale, but do not build the scaled version until the metrics demand it. Monolith first, microservices when you have earned the complexity.
 
+**Design without numbers is just storytelling.** Saying "we will use a cache" is meaningless without knowing *how many* requests per second you expect, *what percentage* are cache-eligible, and *how much* memory the cached data requires. Back-of-envelope math is what separates a design that works from one that sounds good in a meeting.
 
 ## ✅ You've mastered this when…
 
-- You follow requirements → design → deep dive → bottlenecks systematically
-- You do back-of-envelope estimation before designing
-- You understand CAP theorem and its practical implications
-- You can design a URL shortener, chat system, or notification service from scratch
-- You articulate trade-offs clearly (not just "use microservices")
+- You follow requirements then design then deep dive then bottlenecks systematically
+- You do back-of-envelope estimation before designing and use the numbers to justify decisions
+- You understand CAP theorem and can explain which consistency model fits a given feature
+- You can design a URL shortener, chat system, or notification service from scratch with a clear diagram
+- You articulate trade-offs with specifics (not just "use microservices" but "chose microservices because the team needs independent deploy cycles; trade-off is distributed tracing complexity")
+- You know when to introduce caches, queues, and search indexes — and when they add unnecessary complexity
 `},
 
 {id:'cs-15',num:'15',title:'Capstone — Ship a Production System',hours:16,phase:2,topics:['Integration','Full stack','Production deploy'],
 content:`
 ## 🎯 Goal
-Wire everything together. Build, deploy, secure, monitor, and operate a complete multi-component system that uses concepts from every prior module.
+Wire everything together. Build, deploy, secure, monitor, and operate a complete multi-component system that uses concepts from every prior module. This is not just a coding exercise — it is practice for what professional software engineering actually looks like: making decisions under constraints, shipping to real users, and keeping the system running.
 
 ## 🧠 The Capstone Architecture
 
@@ -2130,12 +2655,124 @@ flowchart TD
     Logs & Metrics --> Dashboard[Grafana Dashboard]
 \`\`\`
 
+## 🧠 Development Workflow
+
+A production system is not just code — it is the process around the code. Set up the workflow before writing the first feature.
+
+\`\`\`mermaid
+flowchart LR
+    F[Feature branch] --> PR[Pull Request]
+    PR --> CI[CI: lint + test + build]
+    CI --> CR[Code Review]
+    CR --> M[Merge to main]
+    M --> CD[CD: deploy to staging]
+    CD --> SM[Smoke tests]
+    SM --> PROD[Deploy to production]
+    PROD --> MON[Monitor for 30 min]
+\`\`\`
+
+**Project structure for the capstone:**
+
+\`\`\`
+project/
+  src/
+    routes/          # API route handlers
+    middleware/       # Auth, validation, rate limiting
+    services/        # Business logic
+    models/          # Database models
+    workers/         # Background job processors
+    utils/           # Shared helpers
+  tests/
+    unit/            # Pure function tests
+    integration/     # API + DB tests
+    fixtures/        # Test data
+  migrations/        # Database migrations (timestamped)
+  docker-compose.yml # Local dev environment
+  Dockerfile         # Production container
+  .github/workflows/ # CI/CD pipeline
+  openapi.yaml       # API documentation
+\`\`\`
+
+## 🧠 Database Schema Design
+
+For a task management system, start with a normalized schema and denormalize only where measurements justify it:
+
+\`\`\`mermaid
+erDiagram
+    USERS ||--o{ PROJECT_MEMBERS : joins
+    PROJECTS ||--o{ PROJECT_MEMBERS : has
+    PROJECTS ||--o{ TASKS : contains
+    TASKS ||--o{ COMMENTS : has
+    USERS ||--o{ TASKS : "assigned to"
+    USERS ||--o{ COMMENTS : writes
+    USERS {
+        uuid id PK
+        string email UK
+        string password_hash
+        string role
+        timestamp created_at
+    }
+    PROJECTS {
+        uuid id PK
+        string name
+        uuid owner_id FK
+        timestamp created_at
+    }
+    TASKS {
+        uuid id PK
+        uuid project_id FK
+        uuid assignee_id FK
+        string title
+        text description
+        string status
+        string priority
+        date due_date
+        timestamp created_at
+    }
+    COMMENTS {
+        uuid id PK
+        uuid task_id FK
+        uuid author_id FK
+        text body
+        timestamp created_at
+    }
+\`\`\`
+
+**Key indexes:** task status (for filtered lists), assignee (for "my tasks"), project_id + created_at (for task lists sorted by date).
+
+## 🧠 The Request Lifecycle
+
+Understanding the full lifecycle helps you debug issues at any layer:
+
+\`\`\`mermaid
+sequenceDiagram
+    participant C as Client
+    participant LB as Load Balancer
+    participant API as API Server
+    participant MW as Middleware Stack
+    participant DB as PostgreSQL
+    participant R as Redis
+
+    C->>LB: POST /api/tasks
+    LB->>API: Forward (health-checked)
+    API->>MW: Rate limit check
+    MW->>MW: Auth (verify JWT)
+    MW->>MW: Validate input (Zod)
+    MW->>MW: RBAC (check permissions)
+    API->>DB: INSERT INTO tasks
+    API->>R: Invalidate task list cache
+    API->>API: Enqueue notification job
+    API-->>C: 201 Created
+\`\`\`
+
+Each middleware layer is a concept from a previous module: rate limiting (Module 04), auth (Module 06), validation (Module 07), database (Module 03), caching (Module 11).
+
 ## 🛠️ Build This
 
 A **task management API** (like a mini-Linear or Jira) with:
 
 **Functional requirements:**
-- User registration & login (JWT + refresh tokens)
+- User registration and login (JWT + refresh tokens)
 - Projects with CRUD
 - Tasks with status, assignee, priority, due date
 - Comments on tasks
@@ -2169,30 +2806,58 @@ A **task management API** (like a mini-Linear or Jira) with:
 - [ ] OpenAPI documentation
 - [ ] Deployed to a cloud provider
 
+## 🧠 Incident Response Practice
+
+Shipping is half the work. Operating the system is the other half. Before you consider the capstone complete, practice responding to failures.
+
+**Simulated incident checklist:**
+1. Deploy a bug intentionally (e.g., a slow query, a broken endpoint)
+2. Watch your monitoring dashboard — does it alert you?
+3. Follow your runbook to diagnose the issue
+4. Roll back or fix forward
+5. Write a postmortem
+
+**Runbook template for your capstone:**
+
+\`\`\`
+Runbook: API Returning 500 Errors
+=================================
+1. Check error rate on Grafana dashboard
+2. Filter logs: level=error, last 15 minutes
+3. Identify the failing endpoint and error message
+4. Check: was there a recent deploy? If yes -> rollback
+5. Check: is the database reachable? Run health check
+6. Check: is Redis reachable? Test connection
+7. Check: are background workers processing? Check queue depth
+8. If none of the above -> escalate and gather more traces
+\`\`\`
+
 ## ⌨️ Do This
 
-1. Choose a project: build a URL shortener, a real-time chat app, or a simple e-commerce API
-2. Set up the full stack: database (PostgreSQL), backend (Node.js or Python), reverse proxy (nginx), containerized with Docker
-3. Write the CI/CD pipeline: lint → test → build → deploy to a cloud VM or container service
-4. Add observability from day one: structured logging, health check endpoint, basic metrics (request count, latency, error rate)
-5. Deploy to production, break something intentionally, and practice incident response
+1. Choose a project scope: the task management API described above, a URL shortener with analytics, a real-time chat app, or a simple e-commerce API
+2. Set up the full stack: database (PostgreSQL), backend (Node.js or Python), reverse proxy (nginx), containerized with Docker and docker-compose
+3. Build the core features with tests: aim for at least 80% coverage on business logic and integration tests for every endpoint
+4. Write the CI/CD pipeline: lint then test then build then deploy to staging, with a manual promotion step to production
+5. Add observability from day one: structured JSON logging with request IDs, health check endpoint, basic metrics (request count, latency histogram, error rate)
+6. Deploy to production, break something intentionally, follow your runbook, and write a postmortem
 
 ## ⚠️ Gotcha
 
-**"Done" in production means monitored, documented, and recoverable — not just deployed.** A system without health checks, runbooks, and rollback procedures isn't production-ready. The first outage will expose every shortcut you took. Write the runbook before you need it.
+**"Done" in production means monitored, documented, and recoverable — not just deployed.** A system without health checks, runbooks, and rollback procedures is not production-ready. The first outage will expose every shortcut you took. Write the runbook before you need it.
 
-**Your first production incident will be humbling.** Theory doesn't prepare you for debugging a system at 2 AM when the monitoring dashboard shows everything green but users are complaining. Build debugging muscle: practice reading logs under time pressure, tracing requests across services, and narrowing down root causes systematically.
+**Your first production incident will be humbling.** Theory does not prepare you for debugging a system at 2 AM when the monitoring dashboard shows everything green but users are complaining. Build debugging muscle: practice reading logs under time pressure, tracing requests across services, and narrowing down root causes systematically.
 
+**Scope creep will kill your capstone.** The goal is a working, deployed, monitored system — not a feature-complete product. Ship the minimum viable architecture first (auth, one CRUD resource, CI/CD, logging, health check), then add features incrementally. A deployed system with 3 endpoints and full observability is worth more than a local system with 20 endpoints and no monitoring.
 
 ## ✅ You've mastered the CS track when…
 
-- Your system is deployed and accessible on the internet
-- You can explain every architectural decision and its trade-offs
+- Your system is deployed and accessible on the internet with HTTPS
+- You can explain every architectural decision and the trade-off you considered
 - Your CI/CD pipeline catches bugs before they reach production
-- Your monitoring dashboard shows the four golden signals
+- Your monitoring dashboard shows the four golden signals (latency, traffic, errors, saturation)
 - You can run a load test and identify the bottleneck
-- You've written a postmortem for a simulated incident
-- Someone else could onboard to your codebase using the docs you wrote
+- You have written a postmortem for a simulated incident with actionable follow-ups
+- Someone else could onboard to your codebase using the docs and runbooks you wrote
 `}
 ];
 
