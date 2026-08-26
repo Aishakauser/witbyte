@@ -5,9 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WitByte — from bit to token</title>
 <meta name="description" content="WitByte: An interactive learning platform covering Computer Science, Hardware, BSP, and AI — from bit to token.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💡</text></svg>">
 </head>
 <body>
 <title>WitByte</title>
+<script>document.documentElement.setAttribute('data-theme','dark')</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* ── Tokens ── */
@@ -208,7 +210,7 @@ img{max-width:100%}
 .reader li{margin-bottom:6px;line-height:1.65}
 .reader strong{font-weight:600}
 .reader em{font-style:italic}
-.reader code{font-family:var(--mono);font-size:13px;background:var(--bg2);padding:2px 6px;border-radius:4px}
+.reader code{font-family:var(--mono);font-size:13px;background:var(--bg2);padding:2px 6px;border-radius:4px;color:var(--ink)}
 .reader pre{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;overflow-x:auto;margin-bottom:18px;font-family:var(--mono);font-size:13px;line-height:1.6}
 .reader pre code{background:none;padding:0;border-radius:0}
 .reader blockquote{border-left:3px solid var(--border2);padding:12px 18px;margin-bottom:14px;color:var(--ink2);background:var(--surface2);border-radius:0 8px 8px 0}
@@ -216,6 +218,8 @@ img{max-width:100%}
 .reader th,.reader td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
 .reader th{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:0.4px;color:var(--ink3);background:var(--bg2)}
 .reader .mermaid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:18px;overflow-x:auto;text-align:center}
+.reader .mermaid-wrap pre.mermaid{background:none;border:none;padding:0;margin:0;color:var(--ink)}
+.reader .mermaid-wrap svg{max-width:100%;height:auto}
 .reader .checklist{list-style:none;padding-left:0}
 .reader .checklist li{padding:6px 0;display:flex;align-items:flex-start;gap:8px}
 .reader .checklist li::before{content:'';display:inline-block;width:16px;height:16px;border:2px solid var(--border2);border-radius:4px;flex-shrink:0;margin-top:2px}
@@ -334,14 +338,15 @@ img{max-width:100%}
 .site-footer .footer-links a{color:var(--ink3);transition:color .15s}
 .site-footer .footer-links a:hover{color:var(--ink)}
 
-/* ── Dark code blocks ── */
+/* ── Code blocks (always dark bg for contrast) ── */
 .reader pre{background:#1a1a2e;border:1px solid #2a2a3e;color:#e0def4;border-radius:10px;padding:18px 20px;overflow-x:auto;margin-bottom:18px;font-family:var(--mono);font-size:13px;line-height:1.6}
 .reader pre code{background:none;padding:0;border-radius:0;color:inherit}
-.code-wrap .copy-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15)}
-.code-wrap .copy-btn svg{color:rgba(255,255,255,0.5)}
-.code-wrap .copy-btn:hover{background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.25)}
-.code-wrap .copy-btn.copied{background:var(--bsp-soft);border-color:var(--bsp)}
-.code-wrap .copy-btn.copied svg{color:var(--bsp)}
+.code-wrap .copy-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);opacity:0}
+.code-wrap:hover .copy-btn{opacity:1}
+.code-wrap .copy-btn svg{color:rgba(255,255,255,0.6)}
+.code-wrap .copy-btn:hover{background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3)}
+.code-wrap .copy-btn.copied{background:rgba(52,211,153,0.2);border-color:#34d399}
+.code-wrap .copy-btn.copied svg{color:#34d399}
 
 /* ── Track module list items ── */
 .track-mod-row{padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s var(--ease);border-radius:8px;margin:0 -8px;padding-left:8px;padding-right:8px}
@@ -389,18 +394,18 @@ img{max-width:100%}
     <div class="topbar-right">
       <div class="search-box">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" placeholder="Search modules..." id="searchInput" autocomplete="off">
+        <input type="text" placeholder="Search modules..." id="searchInput" autocomplete="off" aria-label="Search modules">
         <div class="search-results" id="searchResults"></div>
         <span class="search-kbd">⌘K</span>
       </div>
       <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle theme">
-        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
     </div>
   </div>
 
   <!-- Sidebar -->
-  <div class="sidebar" id="sidebar"></div>
+  <nav class="sidebar" id="sidebar" aria-label="Course navigation"></nav>
   <div class="sidebar-backdrop" onclick="this.classList.remove('open');document.querySelector('.sidebar').classList.remove('open')"></div>
 
   <!-- Main content -->
@@ -410,7 +415,26 @@ img{max-width:100%}
   <div class="kbd-hint" id="kbd-hint"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script>
+// ── Mermaid init ──
+if (typeof mermaid === 'undefined') { window.mermaid = { initialize(){}, run(){return Promise.resolve()} }; }
+mermaid.initialize({
+  startOnLoad: false,
+  theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dark',
+  themeVariables: {
+    darkMode: document.documentElement.getAttribute('data-theme') !== 'light',
+    primaryColor: '#7c3aed',
+    primaryTextColor: '#e6e4ea',
+    primaryBorderColor: '#3e3c44',
+    lineColor: '#6b6873',
+    secondaryColor: '#1e1833',
+    tertiaryColor: '#18171b',
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontSize: '13px'
+  }
+});
+
 // ══════════════════════════════════════════
 //  WITBYTE — CURRICULUM DATA
 // ══════════════════════════════════════════
@@ -421,7 +445,7 @@ const TRACKS = {
     color: 'cs',
     tagline: 'Beyond coding — SDLC, architecture, databases, APIs, security, production engineering',
     modules: 15,
-    hours: 160,
+    hours: 180,
     phases: ['Foundation — How Systems Are Built','Intermediate — Building Production Systems','Advanced — Production at Scale']
   },
   hw: {
@@ -429,7 +453,7 @@ const TRACKS = {
     color: 'hw',
     tagline: 'Digital logic to SoC architecture — processors, memory, buses, RTOS, firmware, silicon lifecycle',
     modules: 14,
-    hours: 140,
+    hours: 142,
     phases: ['Foundation — Digital Systems','Intermediate — Hardware Interfaces','Advanced — Software on Hardware']
   },
   bsp: {
@@ -438,7 +462,7 @@ const TRACKS = {
     color: 'bsp',
     tagline: 'The hardware-OS bridge — boot sequences, kernel drivers, device trees, subsystem deep dives',
     modules: 15,
-    hours: 150,
+    hours: 156,
     phases: ['Foundation — Getting a Board to Boot','Intermediate — Driver & System Development','Advanced — Subsystem Deep Dives']
   },
   ai: {
@@ -446,7 +470,7 @@ const TRACKS = {
     color: 'ai',
     tagline: 'Build with AI and build the models underneath — agents, RAG, fine-tuning, deployment',
     modules: 21,
-    hours: 280,
+    hours: 246,
     phases: ['Foundations','Build WITH AI','Make & Fine-tune AI','Capstone']
   }
 };
@@ -7184,17 +7208,23 @@ function renderModule(trackKey, mod) {
   }, 60);
 
   // Render mermaid diagrams
-  setTimeout(() => {
-    document.querySelectorAll('.mermaid-source').forEach(el => {
+  setTimeout(async () => {
+    const sources = document.querySelectorAll('.mermaid-source');
+    if (!sources.length) return;
+    sources.forEach(el => {
       const src = el.textContent;
       const div = document.createElement('div');
       div.className = 'mermaid-wrap';
       const pre = document.createElement('pre');
       pre.className = 'mermaid';
+      pre.setAttribute('data-source', src);
       pre.textContent = src;
       div.appendChild(pre);
       el.replaceWith(div);
     });
+    try {
+      await mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+    } catch(e) { console.warn('Mermaid render error:', e); }
   }, 50);
 }
 
@@ -7226,14 +7256,14 @@ function parseMarkdown(md) {
 
   function flushTable() {
     if (inTable && tableRows.length) {
-      let t = '<table>';
+      let t = '<div style="overflow-x:auto"><table>';
       tableRows.forEach((row, ri) => {
         if (ri === 1 && row.match(/^[\s|:-]+$/)) return;
         const tag = ri === 0 ? 'th' : 'td';
         const cells = row.split('|').filter(c => c.trim() !== '');
         t += '<tr>' + cells.map(c => `<${tag}>${inlineFormat(c.trim())}</${tag}>`).join('') + '</tr>';
       });
-      t += '</table>';
+      t += '</table></div>';
       html += t;
       tableRows = [];
       inTable = false;
@@ -7242,10 +7272,11 @@ function parseMarkdown(md) {
 
   function inlineFormat(text) {
     return text
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\\`/g, '\x00BT\x00')
+      .replace(/`([^`]+)`/g, (_, c) => '<code>' + escapeHtml(c) + '</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      .replace(/\\`/g, '`');
+      .replace(/\x00BT\x00/g, '`');
   }
 
   while (i < lines.length) {
@@ -7339,6 +7370,9 @@ function parseMarkdown(md) {
     html += `<p>${inlineFormat(line)}</p>`;
     i++;
   }
+  if (inCodeBlock) {
+    html += `<pre><code>${escapeHtml(codeContent)}</code></pre>`;
+  }
   flushList();
   flushTable();
   return html;
@@ -7351,8 +7385,13 @@ function escapeHtml(s) {
 // ── Search ──
 const searchInput = document.getElementById('searchInput');
 const searchResults = document.getElementById('searchResults');
+let _searchTimer;
 
 searchInput.addEventListener('input', () => {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(_doSearch, 150);
+});
+function _doSearch() {
   const q = searchInput.value.trim().toLowerCase();
   if (q.length < 2) { searchResults.classList.remove('show'); return; }
 
@@ -7381,14 +7420,14 @@ searchInput.addEventListener('input', () => {
   } else {
     searchResults.innerHTML = results.slice(0,8).map(r => `
       <div class="sr-item" onclick="showModule('${r.trackKey}','${r.mod.id}');searchResults.classList.remove('show');searchInput.value='';">
-        <div class="sr-track" style="color:var(--${r.track.color})">${r.track.name} · ${r.mod.num}</div>
-        <div class="sr-title">${r.mod.title}</div>
-        ${r.snippet ? `<div class="sr-snippet">${r.snippet}</div>` : ''}
+        <div class="sr-track" style="color:var(--${r.track.color})">${escapeHtml(r.track.name)} · ${r.mod.num}</div>
+        <div class="sr-title">${escapeHtml(r.mod.title)}</div>
+        ${r.snippet ? `<div class="sr-snippet">${escapeHtml(r.snippet)}</div>` : ''}
       </div>
     `).join('');
   }
   searchResults.classList.add('show');
-});
+}
 
 document.addEventListener('click', e => {
   if (!e.target.closest('.search-box')) searchResults.classList.remove('show');
@@ -7398,10 +7437,42 @@ document.addEventListener('click', e => {
 function toggleTheme() {
   const root = document.documentElement;
   const current = root.getAttribute('data-theme');
-  if (current === 'dark') {
-    root.setAttribute('data-theme', 'light');
-  } else {
-    root.setAttribute('data-theme', 'dark');
+  const isDark = current !== 'light';
+  root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+
+  // Swap icon: moon (dark mode) ↔ sun (light mode)
+  const icon = document.getElementById('themeIcon');
+  if (icon) {
+    icon.innerHTML = isDark
+      ? '<circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>'
+      : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  }
+
+  // Re-initialize mermaid for new theme
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: isDark ? 'default' : 'dark',
+    themeVariables: isDark ? {} : {
+      darkMode: true,
+      primaryColor: '#7c3aed',
+      primaryTextColor: '#e6e4ea',
+      primaryBorderColor: '#3e3c44',
+      lineColor: '#6b6873',
+      secondaryColor: '#1e1833',
+      tertiaryColor: '#18171b',
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+      fontSize: '13px'
+    }
+  });
+  // Re-render any visible mermaid diagrams with new theme
+  const mermaidEls = document.querySelectorAll('.mermaid[data-source]');
+  if (mermaidEls.length) {
+    mermaidEls.forEach(el => {
+      el.removeAttribute('data-processed');
+      el.innerHTML = '';
+      el.textContent = el.getAttribute('data-source');
+    });
+    mermaid.run({ nodes: mermaidEls }).catch(() => {});
   }
 }
 
