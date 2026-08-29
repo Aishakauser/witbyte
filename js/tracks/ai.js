@@ -555,16 +555,46 @@ Build a "Fetch Inspector" — a webpage where you enter a URL, click "Inspect," 
 Every AI chat interface you'll build uses these web fundamentals. When you see ChatGPT streaming tokens word-by-word, that's **Server-Sent Events (SSE)** -- an HTTP connection that stays open while the server pushes chunks:
 
 \`\`\`javascript
-// SSE — how AI chat UIs stream responses
-const source = new EventSource('/api/chat?message=Hello');
-source.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  if (data === '[DONE]') { source.close(); return; }
-  document.getElementById('response').textContent += data.token;
-};
+// Streaming with fetch — what real chat UIs actually use.
+const res = await fetch('/api/chat', {
+  method: 'POST',                                  // POST: carries history
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ messages })
+});
+
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+let buffer = '';
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+
+  buffer += decoder.decode(value, { stream: true });
+  const lines = buffer.split('\\n');
+  buffer = lines.pop();                            // keep the partial line
+
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    const payload = line.slice(6);
+
+    // Check the sentinel BEFORE parsing -- JSON.parse('[DONE]') throws,
+    // so testing it after the parse makes the check unreachable.
+    if (payload === '[DONE]') return;
+
+    const data = JSON.parse(payload);
+    document.getElementById('response').textContent += data.token;
+  }
+}
 \`\`\`
 
-You'll use \`fetch\` to call LLM APIs, SSE or streaming \`fetch\` to display responses, and DOM manipulation to build the chat interface. The web layer isn't separate from AI work -- it IS how users interact with AI.
+Two things here are worth more than the syntax:
+
+**\`EventSource\` cannot do this job.** The browser's built-in SSE client only issues GET requests and cannot set headers — so no \`Authorization\`, and no conversation history in a body. It is the obvious-looking tool that does not fit, and finding that out an hour in is a rite of passage worth skipping.
+
+**Buffer across chunks.** A network chunk can split a line in half, so a naive \`split('\\n')\` on each chunk will eventually hand \`JSON.parse\` a fragment. Keeping the trailing partial line in a buffer is what makes streaming robust rather than intermittently broken under load.
+
+You'll use \`fetch\` to call LLM APIs, streaming \`fetch\` to display responses, and DOM manipulation to build the chat interface. The web layer isn't separate from AI work -- it IS how users interact with AI.
 `},
 {id:'ai-03',num:'03',title:'MERN Stack',hours:14,phase:0,topics:['React','Express','MongoDB','Node'],content:`
 ## 🎯 Goal
@@ -1216,9 +1246,33 @@ This is the usual explanation for an eval suite that passes locally and fails in
 
 ### The API Pattern
 
-Every LLM API follows the same shape:
+Every LLM API follows roughly the same shape — a model, some messages, a sampling setting — but the details differ enough to matter. Here is the same call to both providers.
+
+**Anthropic:**
 
 \`\`\`javascript
+import Anthropic from '@anthropic-ai/sdk';
+const anthropic = new Anthropic();   // reads ANTHROPIC_API_KEY
+
+const response = await anthropic.messages.create({
+  model: 'claude-sonnet-5',
+  max_tokens: 1024,                  // required
+  temperature: 0.2,
+  system: 'You are a helpful assistant.',   // top-level, not a message
+  messages: [
+    { role: 'user', content: 'Explain DNS in one sentence.' }
+  ]
+});
+
+console.log(response.content[0].text);
+\`\`\`
+
+**OpenAI:**
+
+\`\`\`javascript
+import OpenAI from 'openai';
+const openai = new OpenAI();         // reads OPENAI_API_KEY
+
 const response = await openai.chat.completions.create({
   model: 'gpt-5',
   temperature: 0.2,
@@ -1229,8 +1283,13 @@ const response = await openai.chat.completions.create({
 });
 
 console.log(response.choices[0].message.content);
-// "DNS translates human-readable domain names into IP addresses..."
 \`\`\`
+
+**Three differences worth internalising**, because they are the ones that bite when you port code between providers:
+
+1. **The system prompt lives in a different place.** Anthropic takes it as a top-level \`system\` parameter; OpenAI takes it as the first message with \`role: 'system'\`. Passing a system-role message to Anthropic is a common porting bug.
+2. **\`max_tokens\` is required on Anthropic** and optional on OpenAI. Omitting it is an error, not a default.
+3. **The response shape differs.** Anthropic returns a \`content\` array of typed blocks — text, tool use, and so on — so you narrow by \`type\` rather than reaching straight for \`.text\`. OpenAI returns \`choices[]\`.
 
 **The three roles:**
 - **system** — sets behavior, personality, constraints. Processed first, carries weight.
@@ -1700,10 +1759,14 @@ formatted = prompt.invoke({
 A chain is a sequence of operations. The simplest: prompt → LLM → output parser.
 
 \`\`\`python
+from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
-llm = ChatOpenAI(model="gpt-5", temperature=0)
+# This is the line the whole abstraction is selling. Swap it and
+# nothing downstream changes -- same prompt, same chain, same parser.
+llm = ChatAnthropic(model="claude-sonnet-5", temperature=0)
+# llm = ChatOpenAI(model="gpt-5", temperature=0)
 
 # Chain: prompt → LLM → parse as string
 chain = prompt | llm | StrOutputParser()
