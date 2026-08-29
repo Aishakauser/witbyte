@@ -880,13 +880,23 @@ sequenceDiagram
     S-->>C: 201 Created
     C->>S: POST /auth/login {email, password}
     S->>DB: Verify password hash
-    S-->>C: 200 OK + JWT token
-    Note over C: Store token (httpOnly cookie or memory)
-    C->>S: GET /api/chats (Authorization: Bearer <token>)
+    S-->>C: 200 OK, token in JSON body
+    Note over C: Keep in memory. Pattern A below.
+    C->>S: GET /api/chats with Authorization Bearer header
     S->>S: Verify JWT signature
     S->>DB: Fetch user's chats
     S-->>C: 200 OK + chats
 \`\`\`
+
+That diagram shows **one** of two viable designs. Where the token lives decides how it travels, and the two choices trade one attack for another — so pick deliberately rather than copying whichever tutorial you found first.
+
+### Where the token lives
+
+**Pattern A — token in the response body, sent as a Bearer header.** Your JavaScript holds the token and attaches it to each request. Keep it in **memory** (React state or a module variable), not \`localStorage\`.
+
+**Pattern B — token in an httpOnly cookie.** The server sets the cookie; the browser attaches it automatically and your JavaScript can never read it.
+
+A detail that trips people up: **only the server can create an httpOnly cookie**, via a \`Set-Cookie\` header. If the login response hands the token back as JSON, the client cannot put it into an httpOnly cookie — it has only \`localStorage\` or memory available. Pattern A and Pattern B are decided on the server, at login, and everything downstream follows.
 
 **Server-side auth middleware:**
 
@@ -909,13 +919,16 @@ app.post('/auth/login', async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.password))) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+  // 15 minutes, not days. A JWT cannot be revoked before it expires,
+  // so its lifetime is exactly how long a stolen one stays useful.
+  // Pair this with a refresh token to avoid logging users out constantly.
   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-    expiresIn: '7d'
+    expiresIn: '15m'
   });
-  res.json({ token });
+  res.json({ token });   // PATTERN A: client keeps this in memory
 });
 
-// Auth middleware — protect routes
+// PATTERN A middleware — read the Bearer header
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token' });
@@ -934,7 +947,59 @@ app.get('/api/chats', requireAuth, async (req, res) => {
 });
 \`\`\`
 
-⚠️ **Gotcha:** Never store passwords in plain text. Always hash with bcrypt (cost factor 12+). And never store JWTs in \`localStorage\` — it's accessible to any XSS attack. Use \`httpOnly\` cookies or keep the token in memory (React state).
+**Pattern B — the same thing with an httpOnly cookie.** Only two pieces change: the server sets a cookie instead of returning JSON, and the middleware reads the cookie instead of the header.
+
+\`\`\`javascript
+import cookieParser from 'cookie-parser';
+app.use(cookieParser());
+
+// Login — set the cookie instead of returning the token
+app.post('/auth/login', async (req, res) => {
+  /* ...verify password exactly as above... */
+  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    expiresIn: '15m'
+  });
+
+  res.cookie('token', token, {
+    httpOnly: true,          // JavaScript cannot read it
+    secure: true,            // HTTPS only
+    sameSite: 'strict',      // not sent on cross-site requests: CSRF defence
+    maxAge: 15 * 60 * 1000   // match the JWT expiry
+  });
+  res.json({ ok: true });    // note: the token is NOT in the body
+});
+
+// PATTERN B middleware — read the cookie
+function requireAuth(req, res, next) {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+\`\`\`
+
+### Which to choose
+
+Each pattern is immune to the attack the other is exposed to, so there is no free option:
+
+| | Pattern A — Bearer | Pattern B — httpOnly cookie |
+|---|---|---|
+| XSS can read the token | **Yes** — it is in JS memory | No |
+| XSS can *use* the token | Yes | **Yes** — see below |
+| CSRF exposure | **None** — an attacker cannot set headers cross-origin | Real — needs \`sameSite\`, plus CSRF tokens for cross-site flows |
+| Works cross-domain | Easily | Fiddly — needs \`credentials\` and exact CORS origins |
+
+**The row that matters most is the second one.** httpOnly stops an XSS attacker *reading* your token; it does not stop them *using* it. Injected script can simply issue \`fetch\` calls from the victim's page, and the browser attaches the cookie automatically.
+
+So httpOnly converts **exfiltration** — attacker copies the token, uses it from their own machine, at leisure — into **session riding** — attacker acts only from the victim's browser, only while the session lasts. That is a genuine and worthwhile reduction in blast radius. It is not a cure for XSS, and treating it as one is how teams end up with an unpatched XSS they consider handled.
+
+**Recommendation:** default to Pattern B with \`sameSite: 'strict'\` and short expiry. Pattern A is a perfectly reasonable choice for a single-page app on a separate domain, provided the token stays in memory. \`localStorage\` is the weakest of the three, because the token survives a page reload and is trivially exfiltrated.
+
+⚠️ **Gotcha:** Never store passwords in plain text — always hash with bcrypt (cost factor 12+). And whichever token pattern you pick, commit to it end to end: a login that returns JSON cannot be paired with cookie-reading middleware, and mixing the two is the most common way this breaks.
 
 ## 🧠 Deployment
 
@@ -4377,7 +4442,29 @@ graph TD
 
 \`\`\`
 
-**Leaderboard reality check:** benchmarks measure specific capabilities, not overall quality. A model that scores higher on MMLU might be worse for your use case. Always build *your own eval* (module 12) alongside standard benchmarks. Also, benchmark contamination is real — some models have seen test questions in training data, inflating scores.
+### Benchmarks saturate — and that map is now partly history
+
+Most of the names above no longer separate frontier models. MMLU, HellaSwag, GSM8K, ARC, TriviaQA and HumanEval are **saturated**: the leading models cluster so near the ceiling that the gap between first and fifth place is within noise and contamination effects. A one-point MMLU difference tells you nothing about which model to ship.
+
+That is not a scandal, it is the normal life cycle. A benchmark is useful while models are spread across its range; once they bunch at the top it has stopped measuring and starts merely certifying. The list above is still worth knowing — you will meet these names constantly in papers and model cards — but read them as *history*, not as a shortlist for choosing a model today.
+
+**Currently discriminating (as of 2026 — expect these to saturate too):**
+
+| Benchmark | What it probes |
+|---|---|
+| SWE-bench Verified | Real GitHub issues resolved in a real repo |
+| GPQA Diamond | Graduate-level science questions experts find hard |
+| MMLU-Pro | MMLU rebuilt with harder items and more distractors |
+| AIME / MATH | Competition mathematics |
+| LiveCodeBench | Coding problems published after model training cutoffs |
+| ARC-AGI-2 | Abstract reasoning designed to resist memorisation |
+| τ-bench | Multi-turn agentic tool use against a simulated user |
+
+Notice what several of these have in common: LiveCodeBench dates its problems *after* training cutoffs, and ARC-AGI-2 is built to resist memorisation. Both are direct responses to **contamination** — models having seen test items during training, which inflates scores without improving capability.
+
+**The durable skill is not the list, it is the check.** Before you trust any benchmark, look at the *spread* across the top of its leaderboard rather than the absolute score. Five models within a point of each other means the benchmark has stopped discriminating, whatever the number says. That test still works when every benchmark in this table has been retired.
+
+**Leaderboard reality check:** benchmarks measure specific capabilities, not overall quality. A model that scores higher on MMLU might be worse for your use case. Always build *your own eval* (module 12) alongside standard benchmarks.
 
 ### Quantization — Making Models Smaller and Faster
 

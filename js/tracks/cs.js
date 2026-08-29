@@ -862,7 +862,7 @@ sequenceDiagram
 ⚠️ **Gotcha — JWTs are not magic:**
 - You can't revoke a JWT before expiry (no server-side state to delete)
 - Solution: Short expiry (15 min) + refresh tokens
-- Never store JWTs in localStorage (XSS vulnerable). Use httpOnly cookies.
+- Prefer httpOnly cookies over localStorage — it limits what an XSS attacker can do with the token, though it does not stop them using it (see the Gotcha section below)
 - JWTs are signed, not encrypted — anyone can read the payload. Don't put secrets in them.
 
 ## 🧠 OAuth 2.0 — Delegated Authorization
@@ -927,7 +927,13 @@ RBAC covers 90% of needs. Reach for ABAC when you need rules like "managers can 
 
 **JWTs are not a session replacement without careful design.** A JWT cannot be revoked before it expires — there is no server-side state to delete. If a user's account is compromised, you cannot invalidate their token. The solution is short-lived access tokens (15 minutes) paired with refresh tokens stored in an httpOnly cookie. On each refresh, check if the user should still have access.
 
-**Storing JWTs in localStorage is an XSS vulnerability.** Any JavaScript running on your page (including injected scripts from an XSS attack) can read localStorage. Use httpOnly cookies instead — they are not accessible to JavaScript. This is not optional for production systems handling real user data.
+**Token storage is a trade, and it is worth understanding rather than memorising.** Any JavaScript on your page — including a script injected by XSS — can read \`localStorage\`. An httpOnly cookie cannot be read by JavaScript at all, which is why it is the right default.
+
+But be precise about what that buys. httpOnly stops an attacker **reading** the token; it does not stop them **using** it. Injected script can issue \`fetch\` calls from the victim's page and the browser attaches the cookie automatically. So httpOnly converts *exfiltration* — the attacker copies your token and uses it from their own machine, later, indefinitely — into *session riding*, where they act only from the victim's browser and only while the session lives. Smaller blast radius, same underlying compromise.
+
+It also creates an obligation. Cookies are sent automatically on requests your site did not initiate, so cookie-based auth needs CSRF defence: \`SameSite\` at minimum, and anti-CSRF tokens for cross-site flows. A \`Authorization: Bearer\` header has the opposite profile — immune to CSRF, because an attacker cannot set headers cross-origin, but readable by XSS.
+
+**The practical ranking:** httpOnly cookie with \`SameSite\` is the best default; a Bearer token held in memory is a reasonable choice for a separate-domain SPA; \`localStorage\` is the weakest, because the token survives reloads and is trivially exfiltrated. None of the three removes the need to actually prevent XSS.
 
 ## 🛠️ Mini-Project
 
@@ -942,7 +948,7 @@ Build a complete auth system:
 
 - You can implement JWT auth with refresh tokens
 - You understand OAuth 2.0 Authorization Code flow
-- You know why JWTs shouldn't go in localStorage
+- You can explain the token storage trade — what httpOnly buys, what it doesn't, and the CSRF obligation it creates
 - You can design RBAC for a real application
 - You've implemented a "Login with GitHub/Google" flow
 `},
