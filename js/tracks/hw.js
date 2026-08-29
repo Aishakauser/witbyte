@@ -4,6 +4,20 @@ content:`
 ## 🎯 Goal
 Understand the building blocks of all digital hardware — logic gates, combinational and sequential circuits, and finite state machines.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** The SoC in your handset packs on the order of 15–20 billion transistors, and every one is wired into the gates on this page. When the touch controller decides a tap landed inside a button, that comparison bottoms out in XOR and AND a few nanometres wide. Its debounce logic — ignoring a finger that chatters on contact — is a finite state machine exactly like the ones you will build here.
+
+**On your bench.** A Pi 5 will not let you probe its SoC's internal gates, but you can build the same logic on the GPIO header for the price of a coffee. Wire a 74HC00 quad NAND to pins 17, 27 and 22, then drive it:
+
+\`\`\`bash
+pinctrl set 17 op dh    # input A = 1
+pinctrl set 27 op dl    # input B = 0
+pinctrl get 22          # read the NAND output: expect 1
+\`\`\`
+
+NAND is functionally complete, so that one chip builds every other gate. Prove it: wire NOT, then AND, then OR, from nothing but those four NAND gates.
+
 ## 🧠 Logic Gates — The Atoms of Digital Hardware
 
 Every digital circuit — from a calculator to a supercomputer — is built from a handful of primitive gates.
@@ -113,6 +127,19 @@ content:`
 ## 🎯 Goal
 Understand how a CPU executes instructions — the pipeline, cache hierarchy, and the techniques that make modern processors fast.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your handset has two or three *different* CPU designs on one die — a couple of big cores for burst work, several efficiency cores for everything else. Same instruction set, deliberately different pipelines: the big core reorders aggressively and speculates hard, the small one stays closer to in-order because that is what makes it cheap to run. When your phone gets warm and slows down, the scheduler is moving your work onto the small cores.
+
+**On your bench.** The Pi 5's Cortex-A76 is a real out-of-order superscalar core, and you can watch the cache hierarchy on this page do its job:
+
+\`\`\`bash
+lscpu | grep -i cache          # 64K L1d, 512K L2 per core, 2M shared L3
+perf stat -e cache-misses,cache-references,cycles,instructions ls
+\`\`\`
+
+Run \`perf stat\` on a tight loop over a small array, then over one larger than L2. The miss rate jumping is the memory hierarchy becoming visible in a number.
+
 ## 🧠 The CPU Pipeline
 
 A CPU processes instructions in stages. Pipelining overlaps stages for different instructions:
@@ -194,6 +221,19 @@ content:`
 ## 🎯 Goal
 Understand the major ISA families — ARM, RISC-V, x86 — their design philosophies, and how to read the processor landscape.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your applications processor is ARM A-profile, but it is far from the only CPU in the phone. The modem runs its own cores, the ISP has its own, the audio DSP another — each with an instruction set chosen for its job. "What CPU does my phone have?" has half a dozen right answers, and the one printed on the spec sheet is only the largest.
+
+**On your bench.** You can hold both halves of the A-profile / M-profile split for about £60: a Pi 5 runs Cortex-A76 with an MMU and full Linux, while a Pico runs Cortex-M0+ with no MMU at all.
+
+\`\`\`bash
+uname -m                       # aarch64 on the Pi
+cat /proc/cpuinfo | head -20   # implementer, architecture, part number
+\`\`\`
+
+That pair makes the "why won't Linux run on a Cortex-M?" gotcha concrete: it is not a speed problem, it is the missing MMU.
+
 ## 🧠 RISC vs CISC
 
 \`\`\`mermaid
@@ -274,6 +314,19 @@ Write a comprehensive processor architecture comparison:
 {id:'hw-04',num:'04',title:'SoC Architecture',hours:12,phase:0,topics:['SoC','GPU','DSP','NPU','AXI/AHB','DMA'],content:`
 ## 🎯 Goal
 Understand how a modern System-on-Chip is organized — CPU clusters, GPU, DSP, NPU, interconnect fabric, and how they communicate.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** The block diagram on this page *is* your phone's spec sheet, rearranged. CPU cluster, GPU, NPU, ISP, modem, video codecs, display controller — all on one die, arguing over one memory bus. That contention is why recording 4K while running a camera filter can drop frames: nothing is broken, the bus is just full.
+
+**On your bench.** The Pi 5 is unusually good for this because it is visibly *two* chips: the BCM2712 SoC plus a separate RP1 I/O controller, joined by PCIe. Most of the peripherals you touch live on the far side of that link.
+
+\`\`\`bash
+lspci                          # the RP1 southbridge on the PCIe bus
+vcgencmd get_config int | head # clocks and limits the firmware applied
+\`\`\`
+
+Very few boards let you \`lspci\` your own southbridge. Here the interconnect is not an abstraction in a diagram — it enumerates.
 
 ## 🧠 SoC Block Diagram
 
@@ -364,6 +417,19 @@ Design a complete SoC architecture for a hypothetical mobile chip:
 ## 🎯 Goal
 Understand memory technologies (SRAM, DRAM, Flash), the memory management unit, and virtual memory — the abstraction that lets every process think it owns all of memory.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Phones stack DRAM directly on top of the SoC (package-on-package) to keep the wires short and fast, which is also why phone RAM is never upgradeable. And phones do not swap to flash the way a laptop does — writes would wear the storage and burn battery — so when memory runs out, Android does not page, it *kills your background apps*. That is why your browser reloads the page when you switch back to it.
+
+**On your bench.** The Pi has the same aversion to swap for the same reason, and you can watch virtual memory work:
+
+\`\`\`bash
+free -h                        # note how little swap, and why
+cat /proc/meminfo | grep -i huge
+\`\`\`
+
+Write a loop striding through an array larger than L2 with increasing stride and time it. The step where throughput collapses is your TLB reach — the abstraction leaking exactly where this module says it will.
+
 ## 🧠 Memory Technologies
 
 | Type | Speed | Density | Volatility | Use |
@@ -448,6 +514,19 @@ Explore virtual memory on your system:
 {id:'hw-06',num:'06',title:'Bus Protocols & Interfaces',hours:12,phase:1,topics:['I2C','SPI','UART','PCIe','USB','MIPI'],content:`
 ## 🎯 Goal
 Understand the major communication protocols used in embedded systems — when to use each, their trade-offs, and how to read timing diagrams.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Every protocol here is in your pocket right now. The camera talks MIPI **CSI-2** to the ISP; the display comes back over **DSI**; the accelerometer, magnetometer and battery gauge sit on **I2C** because they are slow and cheap; the SIM speaks **ISO 7816**. Each bus was chosen against the trade-off table above — pin count against bandwidth against distance.
+
+**On your bench.** A Sense HAT puts four I2C devices on one bus for about £30, and \`i2cdetect\` shows you the addresses on the wire:
+
+\`\`\`bash
+sudo apt install -y i2c-tools
+i2cdetect -y 1                 # 7-bit addresses, the unshifted form
+\`\`\`
+
+Remember the shift: an address shown here as 0x5F goes out on the wire as 0xBE to write. Put a £10 logic analyzer on SDA and SCL, decode a transfer in PulseView, and you will see the shifted byte rather than the datasheet one.
 
 ## 🧠 Serial Protocols Comparison
 
@@ -534,6 +613,19 @@ Build a protocol comparison chart and bus debugging guide:
 ## 🎯 Goal
 Understand clock generation and distribution, power domains, and reset sequences — the infrastructure that keeps a chip running.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your handset runs two crystals, not one: a fast reference (often 38.4 MHz) that PLLs multiply up for the CPU and modem, and a tiny 32.768 kHz one that keeps running while the phone is "off". That slow crystal is why the clock is right when you wake it, and why a phone in your pocket can still wake for a page from the network — the fast domain is powered down, the slow one never stops.
+
+**On your bench.** DVFS is directly observable on a Pi 5:
+
+\`\`\`bash
+vcgencmd measure_clock arm     # idle, then under load
+vcgencmd measure_volts core
+\`\`\`
+
+Run those in a loop, start a busy loop on all four cores, and watch frequency *and* voltage climb together — the V and f of the power equation above, moving in real time.
+
 ## 🧠 Clock Generation
 
 \`\`\`mermaid
@@ -612,6 +704,19 @@ Design a clock tree for a hypothetical SoC:
 ## 🎯 Goal
 Understand common SoC peripherals — timers, watchdogs, DMA controllers, and security hardware (TrustZone, crypto engines).
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your fingerprint never leaves the secure world. It is captured, converted to a template and matched inside a separate secure processor — Secure Enclave on Apple, Titan M on Pixel, a TrustZone secure OS elsewhere — and the application processor running Android or iOS only ever receives a yes or no. That is the isolation model on this page, shipped a billion times over: the untrusted side never holds the secret, so compromising it does not leak the biometric.
+
+**On your bench.** The Pi is a useful *negative* example. Its SoC has TrustZone, but the stock software stack runs no secure OS, so there is no secure world to talk to — one reason a Pi is a poor fit for a product that must protect keys. The watchdog, though, is real and worth meeting:
+
+\`\`\`bash
+ls -l /dev/watchdog*
+cat /sys/class/watchdog/watchdog0/timeout
+\`\`\`
+
+Open it, stop petting it, and the board reboots — the failure mode this module exists to teach.
+
 ## 🧠 Key Peripherals
 
 **Timers:** Generate precise time intervals, PWM signals, measure pulse widths. Every RTOS scheduler depends on a hardware timer.
@@ -675,6 +780,19 @@ Design the peripheral subsystem for a smart home sensor hub:
 {id:'hw-09',num:'09',title:'RTOS & Real-Time Systems',hours:10,phase:2,topics:['RTOS','FreeRTOS','Zephyr','Scheduler','Mutex'],content:`
 ## 🎯 Goal
 Understand real-time operating systems — task scheduling, synchronization primitives, and the difference between hard and soft real-time.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your handset runs a general-purpose OS and a hard real-time system side by side on the same die. Android tolerates a late frame; the cellular modem does not — miss a transmit slot and you drop off the network. So the modem runs its own RTOS on its own cores, isolated from Linux entirely. This is the usual answer in practice: not RTOS *or* Linux, but both, each handling what it is good at.
+
+**On your bench.** A Pico plus FreeRTOS or Zephyr gives you the deterministic side for a few pounds, and a Pi lets you measure the other:
+
+\`\`\`bash
+uname -v | grep -i preempt     # does this kernel have RT preemption?
+chrt -f 80 ./your_loop         # run under SCHED_FIFO priority 80
+\`\`\`
+
+Time a loop with and without \`chrt\` while the machine is loaded. The worst-case number, not the average, is the one that matters.
 
 ## 🧠 RTOS vs General-Purpose OS
 
@@ -760,6 +878,19 @@ Build a multi-task RTOS application (use FreeRTOS or Zephyr on a real board or s
 ## 🎯 Goal
 Write firmware — cross-compile C for embedded targets, understand linker scripts and startup code, and debug with JTAG/SWD.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** The step counter keeps counting while the screen is off and the main processor sleeps. That is firmware on a tiny always-on sensor hub, written against exactly the constraints in this module: no OS, kilobytes of RAM, and a power budget measured in microamps. It buffers readings and wakes the applications processor only occasionally, because waking the big core is the expensive part.
+
+**On your bench.** A Pico is a genuine bare-metal target with a real toolchain and real debug hardware, for about £5:
+
+\`\`\`bash
+sudo apt install -y gcc-arm-none-eabi gdb-multiarch openocd
+arm-none-eabi-size firmware.elf   # where your bytes actually went
+\`\`\`
+
+Note \`gdb-multiarch\` — Debian and Ubuntu ship no \`arm-none-eabi-gdb\` binary, which is a common first stumble. A second Pico flashed as picoprobe gives you SWD, so you can set breakpoints in code running on real silicon.
+
 ## 🧠 Cross-Compilation
 
 You compile on your development machine (x86) for a different target (ARM). The cross-toolchain includes: compiler (arm-none-eabi-gcc), assembler, linker, and standard libraries.
@@ -832,6 +963,20 @@ Write a bare-metal LED blinker from scratch (no HAL libraries):
 {id:'hw-11',num:'11',title:'Hardware-Software Interface',hours:10,phase:2,topics:['MMIO','HAL','Registers','Cache coherency'],content:`
 ## 🎯 Goal
 Understand how software talks to hardware — memory-mapped I/O, register programming, HAL design, and cache coherency at the hardware boundary.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** When the camera captures a frame, no CPU copies it. The sensor DMAs straight into a buffer the ISP will read, and the only CPU involvement is cache maintenance so nobody reads stale data. Get that wrong and you do not get a crash — you get a corrupted frame, intermittently, which is precisely the kind of bug this module is about.
+
+**On your bench.** You can hold both sides of the hardware/software interface on a Pi. The raw way, and the correct way:
+
+\`\`\`bash
+sudo apt install -y gpiod
+gpiodetect && gpioinfo          # the kernel's abstraction
+gpioset gpiochip0 17=1          # set a pin through the proper API
+\`\`\`
+
+Then compare against poking the GPIO registers directly through \`/dev/mem\`. Both light the LED. Only one keeps working when the kernel has other opinions about that pin — which is the argument for a HAL in twenty lines.
 
 ## 🧠 Memory-Mapped I/O (MMIO)
 
@@ -913,6 +1058,20 @@ Design a HAL for a UART peripheral:
 ## 🎯 Goal
 Know the lab instruments used to debug hardware — oscilloscopes, logic analyzers, JTAG — and understand FPGA prototyping and hardware-in-the-loop testing.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Open any iFixit teardown and look for the small exposed pads on the board. Those are test points: the factory probes them to program and test the device before the case ever goes on. Design for test is not an afterthought at that volume — a board you cannot test automatically is a board you cannot manufacture.
+
+**On your bench.** This is the module where a small purchase changes everything. A £10 USB logic analyzer plus PulseView turns protocol debugging from guesswork into observation:
+
+\`\`\`bash
+sudo apt install -y pulseview sigrok-cli
+sigrok-cli --driver fx2lafw --channels D0,D1 --samples 200000 \
+  --config samplerate=1m --protocol-decoder i2c
+\`\`\`
+
+Clip onto the Sense HAT's SDA and SCL, capture a transfer, and read the decoded address, ACK and data bytes. An oscilloscope would show you voltage; this shows you protocol — the distinction this module draws.
+
 ## 🧠 Instruments
 
 | Instrument | Measures | When to use |
@@ -968,6 +1127,19 @@ Create a debugging toolkit reference card:
 {id:'hw-13',num:'13',title:'Power & Thermal Management',hours:8,phase:2,topics:['TDP','Sleep states','Battery','Thermal','Leakage'],content:`
 ## 🎯 Goal
 Understand power budgets, thermal design, and sleep states — the constraints that shape every hardware product from phones to data centers.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Record 4K video for ten minutes and your phone gets hot, then visibly slows down. Nothing failed: the thermal governor is trading frequency for temperature, because the case has no fan and skin temperature is a safety limit. Phone SoCs are designed to exceed their sustainable power for short bursts and then throttle — the burst is the product feature, the throttle is the physics.
+
+**On your bench.** A Pi 5 reproduces the whole cycle in about ninety seconds:
+
+\`\`\`bash
+vcgencmd measure_temp
+vcgencmd get_throttled          # bit flags: 0x0 is healthy
+\`\`\`
+
+Run those in a loop, start a four-core busy loop, and watch temperature climb and the throttle flags set. Then attach the active cooler and run it again: same silicon, same workload, sustained performance — thermal design as a measurable variable.
 
 ## 🧠 Power Equation
 
@@ -1030,6 +1202,18 @@ Estimate battery life for a hypothetical wearable device:
 {id:'hw-14',num:'14',title:'Silicon Lifecycle',hours:10,phase:2,topics:['RTL','Tapeout','Process nodes','Packaging','Bring-up'],content:`
 ## 🎯 Goal
 Understand the journey from chip concept to production silicon — design flow, process nodes, packaging, and bring-up.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your handset's SoC is the visible end of a three-to-four-year pipeline: architecture, RTL, verification, tapeout, bring-up, mass production. The annual phone launch cadence you see is the *output* of a schedule where the tapeout happened well over a year before the keynote, and where a bug found after tapeout costs a respin measured in months and millions.
+
+**On your bench.** The Pi lineage makes the cadence concrete — BCM2711 in the Pi 4, BCM2712 in the Pi 5, each a full silicon program. More striking is RP2040 and RP2350: a small team inside a not-very-large company shipped its own chips.
+
+\`\`\`bash
+cat /proc/device-tree/compatible | tr '\0' '\n'   # the exact SoC you are on
+\`\`\`
+
+That string is a product of the whole lifecycle in this module — it is what the silicon tells software about which bugs and errata apply to it.
 
 ## 🧠 Chip Design Flow
 
