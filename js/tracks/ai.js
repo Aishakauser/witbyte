@@ -323,7 +323,10 @@ AI projects have unique version control concerns that regular web projects don't
 # AI project .gitignore additions
 .env                  # API keys (OPENAI_API_KEY, etc.)
 *.pkl                 # Serialized models
-*.pt, *.pth           # PyTorch checkpoints
+# One pattern per line -- .gitignore has no comma syntax, so
+# "*.pt, *.pth" on one line ignores neither file type.
+*.pt                  # PyTorch checkpoints
+*.pth
 *.gguf                # Quantized models
 data/                 # Training datasets (often too large)
 __pycache__/          # Python bytecode
@@ -371,7 +374,7 @@ Host: api.openai.com
 Authorization: Bearer sk-...
 Content-Type: application/json
 
-{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello"}]}
+{"model": "gpt-5", "messages": [{"role": "user", "content": "Hello"}]}
 \`\`\`
 
 **The methods that matter:**
@@ -634,7 +637,7 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { messages } = req.body;
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-5',
       messages
     });
     res.json({ reply: completion.choices[0].message.content });
@@ -676,7 +679,7 @@ const conv = await Conversation.create({
     { role: 'user', content: 'What is RAG?' },
     { role: 'assistant', content: 'RAG stands for...' }
   ],
-  metadata: { model: 'gpt-4', tokens: 150 }
+  metadata: { model: 'gpt-5', tokens: 150 }
 });
 
 // Query conversations
@@ -699,7 +702,8 @@ npm install express mongoose openai dotenv cors
 
 # Frontend
 cd ..
-npx create-react-app client
+npm create vite@latest client -- --template react
+# create-react-app was sunset in Feb 2025 and removed from the React docs
 cd client
 # Build the Chat component from above
 
@@ -876,7 +880,9 @@ cd client
 vercel
 
 # Set environment variables in Vercel dashboard
-# REACT_APP_API_URL=https://your-backend.railway.app
+# VITE_API_URL=https://your-backend.railway.app
+# Vite exposes vars prefixed VITE_ (read via import.meta.env),
+# not the REACT_APP_ prefix CRA used.
 \`\`\`
 
 **Backend deployment (Railway / Render):**
@@ -1053,7 +1059,7 @@ import cron from 'node-cron';
 cron.schedule('0 8 * * *', async () => {
   const tickets = await getYesterdaysTickets();
   const summary = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: 'gpt-5',
     messages: [{
       role: 'user',
       content: \\\`Summarize these support tickets: \\\${JSON.stringify(tickets)}\\\`
@@ -1127,9 +1133,17 @@ flowchart LR
 
 **Tokens** — LLMs don't read words; they read tokens. "unhappiness" might be ["un", "happiness"]. A token is roughly ¾ of a word in English. Why it matters: you're billed per token, and context windows are measured in tokens.
 
-**Context window** — the maximum number of tokens the model can process at once. GPT-4 Turbo has 128K tokens. Claude has 200K. This is your working memory for any single call.
+**Context window** — the maximum number of tokens the model can process at once. This is your working memory for any single call, and it has grown fast: 128K was a frontier figure in 2023, and current frontier models are at **1M tokens** (Claude Opus 5 and Sonnet 5, Gemini 2.5 Pro, GPT-5), with smaller models like Claude Haiku 4.5 at 200K.
 
-**Temperature** — controls randomness. 0 = deterministic (pick the highest-probability token every time). 1 = creative (sample from the distribution). For most AI applications, use 0–0.3. For creative writing, use 0.7–1.0.
+Treat any specific number you read — including these — as a dated snapshot. Never hardcode a context limit from memory or a tutorial; look it up for the exact model you are calling. Anthropic exposes it programmatically via the Models API (\`max_input_tokens\`), and every provider publishes a current model page.
+
+A caution that outlives the numbers: a large context window is a *ceiling*, not a target. Filling 1M tokens costs 1M tokens on every call, raises latency, and often *reduces* answer quality by burying the relevant passage among irrelevant ones. Retrieving the right 4K beats dumping 400K.
+
+**Temperature** — controls randomness. 0 selects the highest-probability token every time (greedy decoding); higher values sample from the distribution. For most applications use 0–0.3; for creative writing, 0.7–1.0. Note that 1 is not the ceiling — most APIs accept up to 2.
+
+**Temperature 0 is not reproducible, and assuming it is will cost you a day.** Greedy decoding removes *sampling* randomness, but the same prompt at temperature 0 can still return different text across calls. Floating-point reductions on GPUs are not associative, so results shift with batch composition — which depends on who else is hitting the server at that moment — and mixture-of-experts models add routing that varies with batching too.
+
+This is the usual explanation for an eval suite that passes locally and fails in CI with no code change. Build evals that tolerate it: assert on semantic properties, schema validity, or a judge's score, not on exact string equality.
 
 ### The API Pattern
 
@@ -1137,7 +1151,7 @@ Every LLM API follows the same shape:
 
 \`\`\`javascript
 const response = await openai.chat.completions.create({
-  model: 'gpt-4',
+  model: 'gpt-5',
   temperature: 0.2,
   messages: [
     { role: 'system', content: 'You are a helpful assistant.' },
@@ -1300,7 +1314,7 @@ const results = await vectorDB.query({
 // 3. Build the prompt with retrieved context
 const context = results.map(r => r.text).join('\\n---\\n');
 const response = await openai.chat.completions.create({
-  model: 'gpt-4',
+  model: 'gpt-5',
   messages: [
     { role: 'system', content: \\\`Answer using ONLY the provided context. If the answer isn't in the context, say "I don't have information about that."
 
@@ -1415,7 +1429,7 @@ async function agentLoop(userMessage, tools, maxIterations = 10) {
 
   for (let i = 0; i < maxIterations; i++) {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-5',
       messages,
       tools,
       tool_choice: 'auto'  // Let the LLM decide
@@ -1598,7 +1612,7 @@ A chain is a sequence of operations. The simplest: prompt → LLM → output par
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
-llm = ChatOpenAI(model="gpt-4", temperature=0)
+llm = ChatOpenAI(model="gpt-5", temperature=0)
 
 # Chain: prompt → LLM → parse as string
 chain = prompt | llm | StrOutputParser()
@@ -1618,7 +1632,7 @@ The \`|\` pipe operator is LCEL (LangChain Expression Language). It composes com
 \`\`\`python
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 
 # Load and split documents
@@ -1697,7 +1711,7 @@ result = executor.invoke({"input": "Where's my order #12345?"})
 ## 🧠 Output Parsers — Structured Data from LLMs
 
 \`\`\`python
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field  # LangChain 0.3+ uses Pydantic v2 directly
 from langchain_core.output_parsers import JsonOutputParser
 
 class ProductReview(BaseModel):
@@ -1784,7 +1798,9 @@ from typing import TypedDict, Annotated
 from langgraph.graph import StateGraph
 
 class AgentState(TypedDict):
-    messages: Annotated[list, "append"]  # Conversation history
+    # The 2nd arg must be a REDUCER FUNCTION, not a string. A bare
+    # "append" is silently not a reducer, so state never accumulates.
+    messages: Annotated[list, add_messages]  # Conversation history
     research: list[str]                   # Collected research
     plan: str                             # Current plan
     approved: bool                        # Human approval flag
@@ -1797,7 +1813,7 @@ Each node is a function that takes the state and returns updates:
 \`\`\`python
 from langchain_openai import ChatOpenAI
 
-llm = ChatOpenAI(model="gpt-4")
+llm = ChatOpenAI(model="gpt-5")
 
 def research_node(state: AgentState) -> dict:
     """Search for information and add to research."""
@@ -1874,7 +1890,9 @@ result = app.invoke(initial_state, config)
 print("Proposed action:", result["plan"])
 
 # Human approves → resume
-app.invoke({"approved": True}, config)  # Continues from where it paused
+app.invoke(None, config)  # Resume: pass None, not new state
+# To feed a value back into the interrupt, use Command:
+#   app.invoke(Command(resume={"approved": True}), config)
 \`\`\`
 
 \`\`\`mermaid
@@ -1989,7 +2007,7 @@ A **trace** captures the full execution of a request — every LLM call, tool in
 
 \`\`\`python
 from langfuse import Langfuse
-from langfuse.decorators import observe
+from langfuse import observe  # v3: the langfuse.decorators module was removed
 
 langfuse = Langfuse()
 
@@ -2011,7 +2029,7 @@ def retrieve_docs(query: str) -> list:
 @observe()
 def call_llm(context: str, question: str) -> str:
     response = openai.chat.completions.create(
-        model="gpt-4",
+        model="gpt-5",
         messages=[
             {"role": "system", "content": f"Context: {context}"},
             {"role": "user", "content": question}
@@ -2028,14 +2046,14 @@ def call_llm(context: str, question: str) -> str:
 | Total tokens | 1,847 (input: 1,520, output: 327) |
 | Cost | $0.058 |
 | Steps | retrieve_docs (0.4s) → call_llm (1.8s) |
-| Model | gpt-4 |
+| Model | gpt-5 |
 
 ### LangChain Integration
 
 If you're using LangChain, the integration is one line:
 
 \`\`\`python
-from langfuse.callback import CallbackHandler
+from langfuse.langchain import CallbackHandler  # v3 moved this
 
 handler = CallbackHandler()
 
@@ -2053,7 +2071,7 @@ Traces tell you what happened. Scores tell you if it was good. Langfuse supports
 **1. User feedback** — thumbs up/down from your users
 
 \`\`\`python
-langfuse.score(
+langfuse.create_score(
     trace_id=trace.id,
     name="user_feedback",
     value=1,  # 1 = positive, 0 = negative
@@ -2076,7 +2094,7 @@ def evaluate_response(question, answer, context):
     Respond with just the number."""
 
     score = call_llm(eval_prompt)
-    langfuse.score(trace_id=trace.id, name="accuracy", value=int(score))
+    langfuse.create_score(trace_id=trace.id, name="accuracy", value=int(score))
 \`\`\`
 
 **3. Programmatic checks** — code-based heuristics
@@ -2084,10 +2102,10 @@ def evaluate_response(question, answer, context):
 \`\`\`python
 # Check if the answer cites sources
 has_citations = "[source]" in answer or "according to" in answer.lower()
-langfuse.score(trace_id=trace.id, name="has_citations", value=int(has_citations))
+langfuse.create_score(trace_id=trace.id, name="has_citations", value=int(has_citations))
 
 # Check latency is acceptable
-langfuse.score(trace_id=trace.id, name="fast_response", value=int(latency < 3.0))
+langfuse.create_score(trace_id=trace.id, name="fast_response", value=int(latency < 3.0))
 \`\`\`
 
 ## 🧠 Evaluation Pipelines
@@ -2108,11 +2126,11 @@ for case in test_cases:
 
     # Score: does the answer contain the expected info?
     accuracy = evaluate_accuracy(answer, case["expected"])
-    langfuse.score(name="accuracy", value=accuracy)
+    langfuse.create_score(name="accuracy", value=accuracy)
 
     # Score: is the answer grounded in retrieved context?
     groundedness = evaluate_groundedness(answer, retrieved_docs)
-    langfuse.score(name="groundedness", value=groundedness)
+    langfuse.create_score(name="groundedness", value=groundedness)
 \`\`\`
 
 ⚠️ **Gotcha:** Model-based evaluation has its own failure modes — the evaluator LLM can be wrong too. Use it as a signal alongside human review, not as a replacement. Track evaluator agreement with human judgments to calibrate trust.
@@ -2156,20 +2174,26 @@ OWASP maintains a standardized list of the most critical LLM security risks. You
 
 \`\`\`mermaid
 graph TD
-  O["OWASP Top 10 for LLMs"] --> I["LLM01: Prompt Injection"]
-  O --> D["LLM02: Insecure Output Handling"]
-  O --> T["LLM03: Training Data Poisoning"]
-  O --> DOS["LLM04: Denial of Service"]
-  O --> SC["LLM05: Supply Chain Vulnerabilities"]
-  O --> P["LLM06: Sensitive Info Disclosure"]
-  O --> PL["LLM07: Insecure Plugin Design"]
-  O --> EA["LLM08: Excessive Agency"]
-  O --> OV["LLM09: Overreliance"]
-  O --> MO["LLM10: Model Theft"]
+  O["OWASP Top 10 for LLM Applications, 2025"] --> I["LLM01: Prompt Injection"]
+  O --> D["LLM02: Sensitive Information Disclosure"]
+  O --> SC["LLM03: Supply Chain"]
+  O --> T["LLM04: Data and Model Poisoning"]
+  O --> OH["LLM05: Improper Output Handling"]
+  O --> EA["LLM06: Excessive Agency"]
+  O --> SPL["LLM07: System Prompt Leakage"]
+  O --> VE["LLM08: Vector and Embedding Weaknesses"]
+  O --> MI["LLM09: Misinformation"]
+  O --> UC["LLM10: Unbounded Consumption"]
 
 \`\`\`
 
-This module focuses on the ones you'll encounter building agents: prompt injection (LLM01), insecure output handling (LLM02), sensitive information disclosure (LLM06), insecure plugin/tool design (LLM07), and excessive agency (LLM08).
+This is the **2025 edition** — always cite the year, because the list changed substantially from the 2023 version you will still find in most blog posts. "Insecure Plugin Design" and "Model Theft" are gone as standalone entries, and three arrived that reflect how people actually deploy LLMs now:
+
+- **LLM07 System Prompt Leakage** — treating your system prompt as a secret is not a security control. Assume it will be extracted, and keep credentials and authorization logic out of it.
+- **LLM08 Vector and Embedding Weaknesses** — attacks on the retrieval layer itself: poisoned documents, embedding inversion recovering source text, and cross-tenant leakage in a shared vector store. This one bears directly on the RAG pipelines built in earlier modules.
+- **LLM10 Unbounded Consumption** — broader than denial of service: it covers cost exhaustion too, since an attacker who can make you spend tokens can run up a bill without ever taking you offline.
+
+This module focuses on what you meet building agents: prompt injection (LLM01), improper output handling (LLM05), excessive agency (LLM06), and the retrieval weaknesses in LLM08.
 
 ### Prompt Injection — The #1 Threat
 
@@ -2543,7 +2567,7 @@ const evalCases = [
 \`\`\`javascript
 async function llmJudge(input, output, rubric) {
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini", // cheaper model for judging
+    model: "gpt-5-mini", // cheaper model for judging
     messages: [{
       role: "system",
       content: \\\`You are an evaluation judge. Score the AI response on a 1-5 scale.
@@ -2629,6 +2653,12 @@ function summarize(results) {
   }
 
   return {
+    // Emit a machine-readable number AND a human string. Gating on a
+    // formatted string is a real bug: parseInt("17/20 (85.0%)") is 17,
+    // so a threshold check reads 17% and fails every run.
+    percent: (passed / total) * 100,
+    passed,
+    total,
     score: \\\`\\\${passed}/\\\${total} (\\\${((passed/total)*100).toFixed(1)}%)\\\`,
     byTag,
     failures: results.filter(r => !r.passed),
@@ -2678,9 +2708,9 @@ jobs:
         run: |
           node -e "
             const r = require('./eval-results.json');
-            const score = parseInt(r.score);
+            const score = r.percent;   // the number, not the display string
             if (score < 85) {
-              console.error('Eval score ' + score + '% below 85% threshold');
+              console.error('Eval score ' + score.toFixed(1) + '% below 85% threshold');
               process.exit(1);
             }
             console.log('Eval passed: ' + r.score);
@@ -2844,7 +2874,7 @@ answer = llm.generate(query, context=top_docs)
 **Fixed-size** (500 tokens, 100 overlap) — simple but splits mid-sentence. **Sentence-based** — split on sentence boundaries, group into chunks of ~5-8 sentences. **Recursive character splitting** — split on paragraphs first, then sentences, then words. **Semantic chunking** — compute embeddings per sentence, split where similarity drops (meaning shift). **Parent-child** — index small chunks for precision retrieval, but pass the larger parent chunk to the LLM for context.
 
 \`\`\`python
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Recursive: tries paragraph breaks first, then sentences, then words
 splitter = RecursiveCharacterTextSplitter(
@@ -3028,7 +3058,6 @@ CMD ["node", "src/server.js"]
 
 \`\`\`yaml
 # docker-compose.yml — multi-service AI stack
-version: '3.8'
 services:
   api:
     build: .
@@ -3311,7 +3340,10 @@ def mse(predictions, targets):
 # Example: predicting house prices
 predictions = np.array([250000, 310000, 180000])
 actual =      np.array([260000, 300000, 195000])
-print(mse(predictions, actual))  # 116666666.67
+print(mse(predictions, actual))  # 141666666.67
+# Errors are -10k, +10k, -15k -> (1e8 + 1e8 + 2.25e8) / 3.
+# Note how the 15k error contributes more than twice the 10k ones:
+# squaring is what makes MSE punish outliers so hard.
 
 # Cross-Entropy Loss — for classification (predicting categories)
 def cross_entropy(predicted_probs, true_labels):
@@ -3323,7 +3355,10 @@ probs = np.array([[0.7, 0.2, 0.1],   # model thinks class 0
                    [0.1, 0.8, 0.1],   # model thinks class 1
                    [0.3, 0.3, 0.4]])  # model unsure, leans class 2
 true_classes = [0, 1, 2]  # correct answers
-print(cross_entropy(probs, true_classes))  # 0.363 (low = good)
+print(cross_entropy(probs, true_classes))  # 0.4987 (low = good)
+# -mean(ln 0.7, ln 0.8, ln 0.4). The unsure third sample dominates:
+# ln(0.4) = -0.92 against ln(0.8) = -0.22, so most of the loss comes
+# from the one prediction the model was least confident about.
 
 \`\`\`
 
@@ -3671,7 +3706,7 @@ print(pieces)        # ['Token', 'ization', 'Ġis', 'Ġsurprisingly', 'Ġimporta
 
 \`\`\`
 
-Key insight: "Tokenization" is split into "Token" + "ization" because "Tokenization" as a whole is rare, but both subwords are common. This is how LLMs handle words they've never seen — they decompose them into known pieces. Vocabulary sizes are typically 30k-100k tokens.
+Key insight: "Tokenization" is split into "Token" + "ization" because "Tokenization" as a whole is rare, but both subwords are common. This is how LLMs handle words they've never seen — they decompose them into known pieces. Vocabulary sizes now run roughly 32k–256k: Llama 3 uses 128k, GPT-4o about 200k, Gemma 256k. Bigger vocabularies encode the same text in fewer tokens — which cuts cost and stretches the effective context — at the price of a larger embedding table.
 
 ### Embeddings — Tokens to Vectors
 
@@ -3796,7 +3831,7 @@ graph LR
 
 ### Scale — The Numbers
 
-**GPT-3:** 175B parameters, ~300B tokens, ~3.6k GPU-days. **Llama 3 70B:** 70B parameters, 15T tokens. **Training cost:** millions of dollars in compute. The key insight of the "scaling laws" era: larger models trained on more data consistently get better. Performance scales as a power law with compute, data, and parameters.
+**GPT-3:** 175B parameters, ~300B tokens, ~3,640 **petaflop/s-days** — that is the figure the paper reports, and it is a measure of raw compute, not wall-clock GPU time. Converted to hardware, it is on the order of 100,000+ GPU-days; quoting it as "3.6k GPU-days" understates the cost by roughly 36x. **Llama 3 70B:** 70B parameters, 15T tokens. **Training cost:** millions of dollars in compute. The key insight of the "scaling laws" era: larger models trained on more data consistently get better. Performance scales as a power law with compute, data, and parameters.
 
 ### From Base Model to Chat Model
 
@@ -3813,9 +3848,21 @@ A base model (pretrained only) is a text completer — it continues whatever tex
 
 ## ⚠️ Gotcha
 
-**Attention scales quadratically** with sequence length. 1,000 tokens = 1M attention computations. 100,000 tokens = 10B computations. This is why context windows were limited and why recent research (FlashAttention, ring attention, linear attention) focuses on making attention more efficient. When you design prompts, remember that longer context isn't free -- it's quadratic compute.
+**Attention scales quadratically** with sequence length. 1,000 tokens = 1M attention computations. 100,000 tokens = 10B computations. This is why context windows were limited, and why so much recent work targets attention.
 
-**Token count != word count.** "ChatGPT" is 3 tokens; "AI" is 1 token; a code snippet is often 2-3x more tokens than the same concepts in English. Miscounting tokens leads to surprise costs and truncated outputs. Always use the actual tokenizer (\`tiktoken\` for OpenAI, \`AutoTokenizer\` for HuggingFace) to count tokens before sending requests. Rule of thumb: 1 token is roughly 4 characters or 0.75 words in English.
+Those approaches are not the same kind of thing, and the difference matters. **FlashAttention is exact** — it computes ordinary attention and returns identical results, but avoids materialising the full N×N score matrix in slow high-bandwidth memory. It is an *IO* optimisation: dramatically faster and far more memory-efficient, while the FLOP count stays quadratic. **Linear attention** variants instead approximate attention with a cheaper formulation, genuinely changing the asymptotic cost — and accepting some quality loss to do it.
+
+So FlashAttention did not break the quadratic wall; it made hitting that wall much cheaper, which is a large part of why long contexts became practical. When you design prompts, longer context still isn't free.
+
+**Token count != word count.** "ChatGPT" is 3 tokens; "AI" is 1 token; a code snippet is often 2-3x more tokens than the same concepts in English. Miscounting tokens leads to surprise costs and truncated outputs. Always count with the tokenizer belonging to **the exact model you are calling** — counts do not transfer between providers, or even between generations from one provider:
+
+- **OpenAI** — \`tiktoken\`
+- **Hugging Face / open models** — \`AutoTokenizer\`
+- **Anthropic** — the \`messages.count_tokens\` API endpoint
+
+Running \`tiktoken\` against text bound for Claude is a common mistake that yields a confidently wrong number. Anthropic's endpoint is also more than a string tokenizer: it counts the **whole request** — system prompt, tool definitions, and images included — all of which consume context and none of which a naive character-count estimate sees. Tokenizers also change between model generations, so re-baseline when you switch models rather than assuming a prompt that fit before still fits.
+
+Rule of thumb for rough estimates only: 1 token is roughly 4 characters or 0.75 words in English.
 
 ## 🛠️ Mini-Project
 
@@ -3919,15 +3966,16 @@ chat_examples = [
 ### Fine-Tuning with LoRA
 
 \`\`\`python
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-from peft import LoraConfig, get_peft_model
-from trl import SFTTrainer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from trl import SFTTrainer, SFTConfig   # SFTConfig replaces TrainingArguments
 
 # 1. Load base model
-model_name = "meta-llama/Llama-3.1-8B"
+model_name = "meta-llama/Llama-4-Scout-17B-16E"
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
-    torch_dtype=torch.float16,
+    dtype=torch.bfloat16,   # renamed from torch_dtype in transformers 4.56;
+                            # bf16 is far more stable than fp16 for LoRA
     device_map="auto"
 )
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -3936,27 +3984,37 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 lora_config = LoraConfig(
     r=16,                  # rank — higher = more capacity, more memory
     lora_alpha=32,         # scaling factor (typically 2x rank)
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],  # attention layers
+    # Attention-only was the 2023 default and leaves quality on the table.
+    # Current practice includes the MLP projections too -- or just use
+    # target_modules="all-linear" and let PEFT find them.
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM"
 )
+# If the base model was loaded in 4-bit (QLoRA), this call is REQUIRED --
+# it casts norms to fp32 and enables gradient checkpointing. Skipping it
+# doesn't error, it just quietly trains much worse.
+# model = prepare_model_for_kbit_training(model)
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 # trainable params: 6,553,600 || all params: 8,036,098,048 || trainable%: 0.082%
 
 # 3. Training arguments
-training_args = TrainingArguments(
+training_args = SFTConfig(
     output_dir="./fine-tuned-model",
     num_train_epochs=3,
     per_device_train_batch_size=4,
     gradient_accumulation_steps=4,  # effective batch size = 4*4 = 16
     learning_rate=2e-4,
-    fp16=True,
+    bf16=True,               # prefer bf16 over fp16: same memory, far fewer
+                             # NaN/overflow blowups partway through training
     logging_steps=10,
     save_strategy="epoch",
-    evaluation_strategy="epoch",
-    warmup_ratio=0.03
+    eval_strategy="epoch",   # renamed from evaluation_strategy in 4.41
+    warmup_ratio=0.03,
+    max_seq_length=512       # moved here from SFTTrainer
 )
 
 # 4. Train
@@ -3965,8 +4023,7 @@ trainer = SFTTrainer(
     args=training_args,
     train_dataset=train_dataset,
     eval_dataset=eval_dataset,
-    tokenizer=tokenizer,
-    max_seq_length=512
+    processing_class=tokenizer,   # TRL renamed tokenizer= to processing_class=
 )
 trainer.train()
 
@@ -4068,7 +4125,7 @@ Full-precision models use 16-bit floats (FP16) per parameter. **Quantization** r
 
 # GGUF quantization with llama.cpp (most popular for local deployment)
 # From terminal:
-# python convert_hf_to_gguf.py meta-llama/Llama-3.1-8B --outtype f16
+# python convert_hf_to_gguf.py meta-llama/Llama-4-Scout-17B-16E --outtype f16
 # ./llama-quantize model-f16.gguf model-Q4_K_M.gguf Q4_K_M
 
 # Common quantization levels:
@@ -4090,13 +4147,13 @@ Serving an LLM naively handles one request at a time. **vLLM** uses **PagedAtten
 # Install: pip install vllm
 
 # Serve a model with vLLM (OpenAI-compatible API)
-# Terminal: vllm serve meta-llama/Llama-3.1-8B-Instruct
+# Terminal: vllm serve meta-llama/Llama-4-Scout-17B-16E-Instruct
 
 # Or in Python:
 from vllm import LLM, SamplingParams
 
 llm = LLM(
-    model="meta-llama/Llama-3.1-8B-Instruct",
+    model="meta-llama/Llama-4-Scout-17B-16E-Instruct",
     dtype="float16",
     max_model_len=4096,
     gpu_memory_utilization=0.9
@@ -4118,7 +4175,7 @@ for output in outputs:
 
 \`\`\`bash
 # Serve with OpenAI-compatible API
-vllm serve meta-llama/Llama-3.1-8B-Instruct \\
+vllm serve meta-llama/Llama-4-Scout-17B-16E-Instruct \\
   --host 0.0.0.0 \\
   --port 8000 \\
   --max-model-len 4096
@@ -4127,7 +4184,7 @@ vllm serve meta-llama/Llama-3.1-8B-Instruct \\
 curl http://localhost:8000/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
     "messages": [{"role": "user", "content": "Hello!"}],
     "max_tokens": 100
   }'
@@ -4369,7 +4426,6 @@ Your eval suite (module 12) is the project's heartbeat. Run it before every depl
 
 \`\`\`yaml
 # docker-compose.prod.yml
-version: '3.8'
 services:
   app:
     build:
