@@ -114,7 +114,15 @@ flowchart TD
     INIT --> USER[Userspace<br/>Applications]
 \`\`\`
 
-Each stage is responsible for initializing enough hardware to load the next stage. ROM code initializes the minimum (clock, memory controller), loads SPL from storage. SPL initializes DRAM, loads U-Boot. U-Boot has a full environment — network, storage, display — and loads the kernel.
+Each stage initializes just enough hardware to load the next.
+
+**ROM code** sets up basic clocks and the storage controller it will boot from, then copies SPL into **on-chip SRAM**. It does *not* bring up DRAM — DRAM is not usable yet, which is exactly why SPL has to land in SRAM.
+
+That constraint shapes everything downstream: on-chip SRAM is typically only **64–256 KB**, so SPL must be tiny. When you hit "SPL image too large" during bring-up, this is the limit you have run into, and it is why SPL is a separate stage rather than just the front of U-Boot.
+
+**SPL** runs from SRAM and does the job ROM could not: it trains and initializes DRAM. Once DRAM works, there is room for a full bootloader, so SPL loads U-Boot into it.
+
+**U-Boot** then has a full environment — network, storage, display, a command line — and loads the kernel.
 
 **What each stage does:**
 - **Boot ROM:** Hardcoded in silicon, cannot be updated. Reads boot pins, initializes minimal clocks, loads SPL from eMMC/SD/SPI/UART
@@ -237,7 +245,7 @@ flowchart LR
     DOT -->|make menuconfig| DOT
     DOT -->|make| BUILD[Build Process]
     BUILD --> VMLINUX[vmlinux<br/>Uncompressed kernel]
-    VMLINUX --> IMAGE[Image / zImage<br/>Compressed kernel]
+    VMLINUX --> IMAGE["Image = arm64, uncompressed<br/>Image.gz or zImage = compressed"]
     BUILD --> MODS[*.ko<br/>Kernel modules]
     BUILD --> DTB[*.dtb<br/>Device tree blobs]
 \`\`\`
@@ -362,7 +370,7 @@ flowchart LR
     };
 
     accelerometer@1d {
-        compatible = "st,lis3dh";
+        compatible = "st,lis3dh-accel";
         reg = <0x1d>;
         st,drdy-int-pin = <1>;
         interrupt-parent = <&gpio2>;
@@ -502,7 +510,6 @@ flowchart TD
 static int my_probe(struct platform_device *pdev)
 {
     struct my_data *data;
-    struct resource *res;
     void __iomem *base;
 
     data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
@@ -513,11 +520,13 @@ static int my_probe(struct platform_device *pdev)
     if (IS_ERR(base))
         return PTR_ERR(base);
 
-    data->clk = devm_clk_get(&pdev->dev, NULL);
+    /* devm_clk_get_enabled() gets, prepares and enables in one call, and
+     * unwinds automatically on unbind — replaces the old get + prepare_enable
+     * pair, and can't leave the clock on down an error path. */
+    data->clk = devm_clk_get_enabled(&pdev->dev, NULL);
     if (IS_ERR(data->clk))
         return PTR_ERR(data->clk);
 
-    clk_prepare_enable(data->clk);
     platform_set_drvdata(pdev, data);
     return 0;
 }
@@ -530,7 +539,11 @@ MODULE_DEVICE_TABLE(of, my_of_match);
 
 static struct platform_driver my_driver = {
     .probe  = my_probe,
-    .remove = my_remove,
+    /* No .remove needed: every allocation above is devm_*, so the driver
+     * core unwinds them in reverse order on unbind. If you do add one,
+     * note the signature changed in Linux 6.11 —
+     *   void my_remove(struct platform_device *pdev)
+     * An int-returning .remove is now a build error. */
     .driver = {
         .name = "my-device",
         .of_match_table = my_of_match,
@@ -808,7 +821,7 @@ static const struct regmap_config my_regmap_config = {
     .reg_bits = 8,
     .val_bits = 8,
     .max_register = 0xFF,
-    .cache_type = REGCACHE_RBTREE,
+    .cache_type = REGCACHE_MAPLE,   /* RBTREE was removed in Linux 6.10 */
     .volatile_reg = my_volatile_reg,  /* Status regs: skip cache */
 };
 
@@ -994,7 +1007,7 @@ static irqreturn_t my_irq_thread_fn(int irq, void *dev_id)
 
 Write an I2C temperature sensor driver using the IIO subsystem:
 1. Create an I2C client driver matching compatible string \`"ti,tmp102"\` (or \`"learn,virtual-temp"\` for a virtual device)
-2. In \`probe()\`, create a regmap, read the device ID register (0x0F for TMP102) to verify the chip is present
+2. In \`probe()\`, create a regmap and confirm the chip responds. Note that **TMP102 has no ID register** — it exposes only four: 0x00 temperature, 0x01 configuration, 0x02 T_LOW, 0x03 T_HIGH. Probe it by reading the config register and checking the reset defaults, or simply let a failed I2C transfer be your "not present" signal. (Reaching for an ID register is the right instinct — TMP117 has one at 0x0F — but inventing one for a chip that lacks it is a classic way to conclude your hardware is broken when it isn't.)
 3. Register an IIO device with a temperature channel — implement \`read_raw()\` to read register 0x00 and convert to millidegrees
 4. Add interrupt support: configure the sensor's alert threshold register (0x03) and handle the alert with a threaded IRQ
 5. Write a matching device tree entry with compatible string, reg, and interrupt properties
@@ -1064,7 +1077,7 @@ flowchart TD
 
 **DRM (Direct Rendering Manager) has nothing to do with DRM (Digital Rights Management).** Same acronym, completely unrelated. In BSP and kernel context, DRM always means the display framework. This confusion has persisted for 20+ years and still trips up newcomers searching for documentation.
 
-**GPU driver support is the number one pain point in embedded Linux display.** Many SoC vendors provide proprietary GPU drivers that only work with specific kernel versions and break on upgrades. Mesa open-source GPU drivers are the ideal but coverage varies by GPU IP: Arm Mali support via Panfrost is good for Midgard/Bifrost but incomplete for newer Valhall; Vivante GPUs have etnaviv; Qualcomm Adreno has freedreno. Always verify GPU driver availability and OpenGL ES version support before choosing a display SoC for a product.
+**GPU driver support is the number one pain point in embedded Linux display.** Many SoC vendors provide proprietary GPU drivers that only work with specific kernel versions and break on upgrades. Mesa open-source GPU drivers are the ideal, and coverage is now much better than its reputation: Arm Mali has **Panfrost** for Midgard and Bifrost, and **Panthor** — merged in Linux 6.10 — for newer Valhall and Arm's CSF-based parts; Vivante GPUs have etnaviv; Qualcomm Adreno has freedreno. Check the current state before assuming you need a vendor blob, because that assumption is often a year or two out of date and commits you to a driver that pins your kernel version. Always verify GPU driver availability and OpenGL ES version support before choosing a display SoC for a product.
 
 **Display pipeline configuration order matters.** You must set modes atomically: configure CRTC, encoder, and connector together. Setting them individually can leave the display in an inconsistent state with garbled output or no output at all. Use the DRM atomic modesetting API (\`drmModeAtomicCommit\`) rather than legacy per-CRTC calls.
 
@@ -1406,7 +1419,7 @@ sequenceDiagram
     PM->>USER: Thaw userspace processes
 \`\`\`
 
-**PM Runtime** manages power for individual devices independently of system suspend. A driver calls \`pm_runtime_get_sync()\` before accessing hardware and \`pm_runtime_put_autosuspend()\` when done. The PM core powers the device down after a configurable idle timeout — no power wasted on devices not in active use.
+**PM Runtime** manages power for individual devices independently of system suspend. A driver calls \`pm_runtime_resume_and_get()\` before accessing hardware and \`pm_runtime_put_autosuspend()\` when done. (Reach for \`resume_and_get()\`, not the older \`pm_runtime_get_sync()\`: on failure \`get_sync()\` returns the error but *keeps* the usage count it took, so error paths that just return leak a reference and pin the device powered forever. \`resume_and_get()\` drops it for you.) The PM core powers the device down after a configurable idle timeout — no power wasted on devices not in active use.
 
 \`\`\`bash
 # PM runtime sysfs interface
