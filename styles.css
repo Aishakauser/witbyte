@@ -382,3 +382,10 @@ img{max-width:100%}
 @media(min-width:769px){.menu-btn{display:none}}
 .skip-link{position:absolute;top:-100%;left:16px;padding:8px 16px;background:var(--cs);color:#fff;border-radius:0 0 8px 8px;z-index:100;font-size:14px;font-weight:600;transition:top .2s}
 .skip-link:focus{top:0}
+
+/* Interactive Visuals */
+.interactive-visuals{margin-top:32px}
+.visual-heading{font-size:20px;font-weight:700;color:var(--ink);margin-bottom:16px;padding-top:16px;border-top:1px solid var(--border)}
+.visual-block{margin-bottom:24px;padding:20px;background:var(--bg);border-radius:14px;border:1px solid var(--border)}
+.vis-title{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:6px}
+.vis-desc{font-size:13px;color:var(--ink2);margin-bottom:16px;line-height:1.5}

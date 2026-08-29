@@ -4,6 +4,20 @@ import { CS_MODULES } from './tracks/cs.js';
 import { HW_MODULES } from './tracks/hw.js';
 import { BSP_MODULES } from './tracks/bsp.js';
 import { AI_MODULES } from './tracks/ai.js';
+import { renderVisuals } from './visuals.js';
+
+// Load interactive visuals (self-registering modules)
+import '../visuals/hw/logic-gates.js';
+import '../visuals/hw/pipeline.js';
+import '../visuals/hw/memory-hierarchy.js';
+import '../visuals/cs/api-flow.js';
+import '../visuals/cs/auth-flow.js';
+import '../visuals/cs/cicd-pipeline.js';
+import '../visuals/bsp/boot-sequence.js';
+import '../visuals/bsp/device-tree.js';
+import '../visuals/ai/gradient-descent.js';
+import '../visuals/ai/neural-net.js';
+import '../visuals/ai/tokenizer.js';
 
 // ── Global error handler ──
 window.onerror = function(msg, src, line, col) { console.error('WitByte error:', msg, 'at', src, line + ':' + col); return false; };
@@ -531,6 +545,9 @@ function renderModule(trackKey, mod) {
       await mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
     } catch(e) { console.warn('Mermaid render error:', e); }
   }, 50);
+
+  // Render interactive visuals
+  setTimeout(() => renderVisuals(mod.id, main), 100);
 }
 
 // ── Simple Markdown Parser ──
