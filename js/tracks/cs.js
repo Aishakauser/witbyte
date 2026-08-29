@@ -45,9 +45,11 @@ flowchart TD
     R -->|Potentially shippable<br/>increment| SHIP[🚀]
 \`\`\`
 
-**Key roles:** Product Owner (what to build), Scrum Master (process guardian), Development Team (how to build it).
+**Key roles:** Product Owner (what to build), Scrum Master (process guardian), Developers (how to build it). The 2020 Scrum Guide renamed "Development Team" to simply **Developers**, to stop the team-inside-a-team framing — there is one Scrum Team, and these are accountabilities within it, not job titles.
 
-**Ceremonies:** Sprint Planning, Daily Standup (15 min: what I did, what I'll do, blockers), Sprint Review (demo), Retrospective (process improvement).
+**Events:** Sprint Planning, Daily Scrum (15 min), Sprint Review (demo), Retrospective (process improvement).
+
+The familiar three standup questions — what I did, what I'll do, blockers — were **removed from the 2020 Scrum Guide**. They are still a fine starting structure, but they were dropped because they reliably decay into a status report to the Scrum Master. The actual purpose is for the Developers to re-plan their own next day against the Sprint Goal.
 
 ### Kanban — Flow Over Sprints
 
@@ -317,22 +319,32 @@ flowchart LR
 ### SQL — The Queries That Matter
 
 \`\`\`sql
--- JOIN: combine related tables
-SELECT u.name, COUNT(o.id) as order_count, SUM(o.total) as lifetime_value
+-- JOIN: combine related tables.
+-- Note COALESCE: a LEFT JOIN gives NULL (not 0) for users with no orders,
+-- and the HAVING filters on that same expression so zero-order users are
+-- kept rather than silently dropped -- which is the whole point of LEFT JOIN.
+SELECT u.name,
+       COUNT(o.id) as order_count,
+       COALESCE(SUM(o.total), 0) as lifetime_value
 FROM users u
 LEFT JOIN orders o ON u.id = o.user_id
 GROUP BY u.id, u.name
-HAVING SUM(o.total) > 100
+HAVING COALESCE(SUM(o.total), 0) > 100
 ORDER BY lifetime_value DESC;
 
 -- Subquery: orders with above-average totals
 SELECT * FROM orders
 WHERE total > (SELECT AVG(total) FROM orders);
 
--- Window function: rank users by spending
-SELECT name, total,
-       RANK() OVER (ORDER BY total DESC) as spending_rank
-FROM users u JOIN orders o ON u.id = o.user_id;
+-- Window function: rank users by TOTAL spending.
+-- Ranking over o.total would rank individual orders, so a user with three
+-- small orders never places -- aggregate first, then rank the aggregate.
+SELECT u.name,
+       SUM(o.total) as lifetime_value,
+       RANK() OVER (ORDER BY SUM(o.total) DESC) as spending_rank
+FROM users u
+JOIN orders o ON u.id = o.user_id
+GROUP BY u.id, u.name;
 \`\`\`
 
 ### Indexing — Why Your Query is Slow
@@ -343,7 +355,7 @@ An index is a sorted data structure (usually a B-tree) that lets the database fi
 flowchart TD
     Q["SELECT * FROM users WHERE email = 'x'"] --> D{Index on email?}
     D -->|No| FS["Full table scan O(n) — checks every row"]
-    D -->|Yes| IS["Index lookup O(log n) — binary search"]
+    D -->|Yes| IS["Index lookup O(log n) — B-tree descent"]
 \`\`\`
 
 **Rules of thumb:**
@@ -620,19 +632,29 @@ sequenceDiagram
 
 ## 🧠 CORS — Why Your Fetch Fails
 
-CORS (Cross-Origin Resource Sharing) is a browser security mechanism. It prevents \`evil.com\` from making requests to \`your-bank.com\` using your cookies.
+Get the direction right, because it is almost always taught backwards. The **Same-Origin Policy** is what blocks cross-origin reads — that is the default, and it is the security mechanism. **CORS is the mechanism for relaxing it**: a server uses CORS headers to opt *in* to being read by another origin. CORS does not add a restriction; it grants an exception.
+
+The practical consequence: a CORS error never means "the browser protected you from a malicious server." It means "this server has not opted in to being read by your origin."
+
+**CORS does not stop CSRF.** A cross-origin \`POST\` is still *sent*, with cookies, and your server still processes it — the browser only withholds the *response* from the calling JavaScript. Defending against CSRF needs its own machinery: \`SameSite\` cookies, and anti-CSRF tokens.
+
+**Not every request preflights.** Simple requests go straight out with no \`OPTIONS\`:
 
 \`\`\`mermaid
 sequenceDiagram
-    participant B as Browser (app.com)
-    participant API as API (api.other.com)
-    Note over B: JavaScript calls fetch("api.other.com/data")
-    B->>API: OPTIONS /data (preflight)
-    Note over B,API: "Can app.com access this?"
-    API-->>B: Access-Control-Allow-Origin: app.com ✅
-    B->>API: GET /data (actual request)
-    API-->>B: { data: ... }
+    participant B as Browser at app.com
+    participant API as API at api.other.com
+    Note over B: Simple request — GET, no custom headers
+    B->>API: GET /data
+    API-->>B: Access-Control-Allow-Origin, then the body
+    Note over B: Complex — custom header or PUT/DELETE
+    B->>API: OPTIONS /data — preflight
+    API-->>B: Allow-Origin, Allow-Methods, Allow-Headers
+    B->>API: PUT /data — the real request
+    API-->>B: Response body
 \`\`\`
+
+A request preflights when it leaves the "simple" set: methods beyond GET/HEAD/POST, a \`Content-Type\` other than form/plain-text/multipart, or any custom header such as \`Authorization\`. This is why adding one header to a working \`fetch\` can suddenly produce a CORS error that was not there before.
 
 ⚠️ **Gotcha:** CORS is enforced by the *browser*, not the server. Server-to-server calls (Postman, curl, your backend) are unaffected. If your API works in Postman but fails in the browser, it's CORS.
 
@@ -641,7 +663,12 @@ sequenceDiagram
 Access-Control-Allow-Origin: https://your-frontend.com
 Access-Control-Allow-Methods: GET, POST, PUT, DELETE
 Access-Control-Allow-Headers: Content-Type, Authorization
+Access-Control-Allow-Credentials: true
 \`\`\`
+
+Note the origin needs a **scheme** — \`https://your-frontend.com\`, not \`your-frontend.com\`. A bare hostname matches nothing and fails silently.
+
+**The credentials rule catches almost everyone.** If the request sends cookies or an \`Authorization\` header, the client must set \`credentials: "include"\` *and* the server must return \`Access-Control-Allow-Credentials: true\`. In that mode the wildcard is **forbidden**: \`Access-Control-Allow-Origin: *\` is rejected outright, and you must echo back one specific origin. This is the single most common real CORS failure — a config that works fine until you add authentication, then breaks with an error that never mentions credentials.
 
 ## 🧠 TLS/SSL — Encryption in Transit
 
@@ -678,7 +705,9 @@ flowchart TD
 
 **HTTP/1.1 problem:** One request per TCP connection at a time. Browsers open 6 parallel connections as a workaround.
 
-**HTTP/2 fixes:** Multiplexing (many requests on one connection), header compression, server push.
+**HTTP/2 fixes:** Multiplexing (many requests on one connection) and header compression.
+
+HTTP/2 *also* shipped **server push**, and you will still see it listed as a benefit — but it is dead. Chrome removed support in version 106 (2022) and other browsers and CDNs followed: it was hard to use correctly and usually pushed resources the client already had cached. The modern replacement is a **\`103 Early Hints\`** response, which tells the browser what to start fetching while the server is still assembling the real response — advisory rather than forced.
 
 **HTTP/3 goes further:** Uses QUIC (built on UDP), eliminating head-of-line blocking at the transport layer.
 
@@ -779,19 +808,27 @@ sequenceDiagram
     participant Auth as Google/GitHub
     participant API as Resource Server
     U->>App: "Login with Google"
-    App->>Auth: Redirect to /authorize
+    App->>Auth: Redirect to /authorize with state and code_challenge
     U->>Auth: Grants permission
-    Auth-->>App: Authorization code
-    App->>Auth: Exchange code for token
+    Auth-->>U: 302 redirect to callback with code and state
+    U->>App: Browser follows redirect, delivering the code
+    App->>App: Verify state matches what was sent
+    App->>Auth: Exchange code for token, with code_verifier
     Auth-->>App: Access token + refresh token
-    App->>API: GET /user (Bearer token)
+    App->>API: GET /user with Bearer token
     API-->>App: User data
 \`\`\`
 
+**The code comes back through the browser, not server-to-server.** That single fact is why the next two parameters exist, and it is worth reading the diagram again to see it: the authorization server can only *redirect the user*, so the code travels through a URL bar you do not control.
+
+- **\`state\`** — an unguessable value you send on the way out and verify on the way back. Without it, an attacker can feed a victim's browser *their own* authorization code and silently link the victim's session to the attacker's account. This is CSRF against the login flow itself, and omitting \`state\` is one of the most common OAuth implementation bugs.
+- **PKCE** (\`code_challenge\` / \`code_verifier\`) — proves the client redeeming the code is the same one that started the flow, so an intercepted code is useless on its own.
+
 **OAuth flows:**
-- **Authorization Code** (+ PKCE): For web/mobile apps with a backend. Most secure.
-- **Client Credentials:** Machine-to-machine (no user involved).
-- **Implicit:** Deprecated — don't use.
+- **Authorization Code + PKCE:** the default for essentially everything. PKCE began as a mobile/public-client fix, but **OAuth 2.1 recommends it for all clients including confidential server-side apps** — treat it as standard, not as the mobile variant.
+- **Client Credentials:** machine-to-machine (no user involved).
+- **Device Code:** input-constrained devices — TVs, CLIs — where the user authorizes on a second device.
+- **Implicit:** removed in OAuth 2.1. Don't use it.
 
 **OpenID Connect (OIDC)** adds identity on top of OAuth — it gives you an ID token with the user's profile.
 
@@ -847,20 +884,29 @@ content:`
 ## 🎯 Goal
 Understand the OWASP Top 10 vulnerabilities, how they're exploited, and how to defend against them. Think like an attacker to build like a defender.
 
-## 🧠 OWASP Top 10
+## 🧠 OWASP Top 10 (2025)
+
+The list is revised every few years from real breach data, so **always cite the year** — an unlabelled "OWASP Top 10" is not a useful reference. This is the 2025 edition, released November 2025 and the first revision since 2021.
 
 \`\`\`mermaid
 flowchart TD
-    A01[A01: Broken Access Control] --> A02[A02: Cryptographic Failures]
-    A02 --> A03[A03: Injection]
-    A03 --> A04[A04: Insecure Design]
-    A04 --> A05[A05: Security Misconfiguration]
-    A05 --> A06[A06: Vulnerable Components]
-    A06 --> A07[A07: Auth Failures]
+    A01[A01: Broken Access Control] --> A02[A02: Security Misconfiguration]
+    A02 --> A03["A03: Software Supply Chain Failures — NEW"]
+    A03 --> A04[A04: Cryptographic Failures]
+    A04 --> A05[A05: Injection]
+    A05 --> A06[A06: Vulnerable and Outdated Components]
+    A06 --> A07[A07: Authentication Failures]
     A07 --> A08[A08: Data Integrity Failures]
-    A08 --> A09[A09: Logging Failures]
-    A09 --> A10[A10: SSRF]
+    A08 --> A09[A09: Security Logging and Alerting Failures]
+    A09 --> A10["A10: Mishandling of Exceptional Conditions — NEW"]
 \`\`\`
+
+**What moved, and what it tells you.** Broken Access Control stays at #1. Security Misconfiguration climbed from #5 to #2. **Injection fell from #3 to #5** — not because injection stopped mattering, but because parameterized queries and ORMs became the default, which is a genuine industry-wide win worth noticing.
+
+The two new entries are the interesting part:
+
+- **A03 Software Supply Chain Failures** enters straight at #3, broadening the old "Vulnerable and Outdated Components" beyond your dependency list to the whole chain that produces your build — registries, CI, and build tooling included. Compromising a build pipeline reaches everyone downstream at once.
+- **A10 Mishandling of Exceptional Conditions** covers improper error handling, logic that fails *open* rather than closed, and misbehaviour under abnormal conditions. A surprising share of real breaches are not clever exploits but a catch block that swallowed an error and continued as if authorized.
 
 ### SQL Injection — The Classic
 
@@ -908,7 +954,7 @@ Attacker tricks a logged-in user's browser into making requests on their behalf.
 
 ## 🧠 Encryption
 
-**At rest:** Encrypt stored data (database encryption, disk encryption). AES-256 is the standard.
+**At rest:** Encrypt stored data (database encryption, disk encryption). **AES-256-GCM** is the standard — name the mode, not just the cipher. AES alone says nothing about integrity: AES-256-**CBC** encrypts but does not authenticate, so an attacker can tamper with ciphertext undetected. GCM is an AEAD mode, giving you confidentiality and integrity together. "We use AES-256" is not, by itself, a statement that your data is safe from modification.
 
 **In transit:** TLS (we covered this in Networking).
 
@@ -1102,10 +1148,10 @@ flowchart LR
 ### Dockerfile Example
 
 \`\`\`dockerfile
-FROM node:18-alpine
+FROM node:22-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --production
+RUN npm ci --omit=dev
 COPY . .
 EXPOSE 3000
 CMD ["node", "server.js"]
@@ -1146,7 +1192,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 18 }
+        with: { node-version: 22 }
       - run: npm ci
       - run: npm test
       - run: npm run lint
@@ -1174,9 +1220,21 @@ flowchart TD
 Define infrastructure in code files, version-control them, apply changes through a pipeline.
 
 \`\`\`hcl
-# Terraform example
+# Look the AMI up instead of hardcoding it. AMI ids are region-specific and
+# change with every distro release -- a pasted id is the most common reason
+# a working Terraform config fails in another region or ships an EOL image.
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Canonical
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+  }
+}
+
 resource "aws_instance" "web" {
-  ami           = "ami-0c55b159cbfafe1f0"
+  ami           = data.aws_ami.ubuntu.id
   instance_type = "t3.micro"
   tags = { Name = "web-server" }
 }
@@ -1320,11 +1378,15 @@ Instrument your API with the three pillars:
 {id:'cs-11',num:'11',title:'Performance & Scalability',hours:12,phase:2,topics:['Caching','Redis','Sharding','Load balancing','Profiling'],
 content:`
 ## 🎯 Goal
-Make systems fast and keep them fast under load. Understand caching strategies, load balancing, database scaling, and how to find bottlenecks using profiling tools. In production systems, performance isn not a feature — it is a constraint that shapes every design decision.
+Make systems fast and keep them fast under load. Understand caching strategies, load balancing, database scaling, and how to find bottlenecks using profiling tools. In production systems, performance is not a feature — it is a constraint that shapes every design decision.
 
 ## 🧠 Caching — The Biggest Performance Win
 
-Caching stores a copy of expensive-to-compute or expensive-to-fetch data closer to where it is needed. The impact is dramatic: a Redis lookup takes ~1ms vs ~50ms for a database query vs ~200ms for an external API call.
+Caching stores a copy of expensive-to-compute or expensive-to-fetch data closer to where it is needed.
+
+Be careful with the numbers here, because the usual framing oversells it. A Redis lookup is ~1ms. A **warm, indexed** single-row query against Postgres on the same network is roughly **0.1–1ms** — comparable, sometimes faster. Databases are not inherently slow; they are slow when the query is unindexed, returns many rows, joins badly, or spills to disk. A query that genuinely takes 50ms is telling you something about *that query*.
+
+This matters because "the database is slow, add a cache" is how you end up with a cache in front of a query that needed an index — now you have the original latency on every miss, plus invalidation bugs, plus stale reads. Measure the query first. Cache what is expensive to *compute* or fetch across a network you don't control (an external API at ~200ms is a much better candidate), not what is merely stored in a database.
 
 \`\`\`mermaid
 flowchart LR
@@ -1935,7 +1997,7 @@ Cloud bills spiral when nobody watches. In production, teams regularly discover 
 
 **IAM is the most critical security layer in cloud, and the most neglected.** Over-permissive IAM policies (e.g., \`*\` permissions on \`*\` resources) are the root cause of most cloud security breaches. Follow least privilege ruthlessly: each service gets only the specific permissions it needs, on only the specific resources it accesses. Audit IAM policies quarterly.
 
-**Terraform state is a single point of failure.** If you lose the state file, Terraform does not know what resources exist — you cannot manage or destroy them. Never store state locally for team projects. Use a remote backend (S3 + DynamoDB for locking) and enable state file versioning so you can recover from corruption.
+**Terraform state is a single point of failure.** If you lose the state file, Terraform does not know what resources exist — you cannot manage or destroy them. Never store state locally for team projects. Use a remote backend with state file versioning enabled so you can recover from corruption. For S3, use **native S3 locking** (\`use_lockfile = true\`), added in Terraform 1.10 — the older S3-plus-DynamoDB pattern still works but the DynamoDB lock table was deprecated in 1.11, and you no longer need a second service just to hold a lock.
 
 ## 🛠️ Mini-Project
 
@@ -2002,21 +2064,20 @@ Before designing, estimate the scale. These numbers shape every decision:
 
 ### CAP Theorem
 
-In a distributed system, you can guarantee at most two of three:
+CAP is the most misquoted result in distributed systems. It is **not** "pick two of three" — that framing invites you to imagine choosing a CA system, which does not exist in anything that talks over a network.
+
+Partition tolerance is not a feature you select. Networks partition. The only real question is what your system does **when** one happens:
 
 \`\`\`mermaid
 flowchart TD
-    C[Consistency<br/>Every read gets the latest write]
-    A[Availability<br/>Every request gets a response]
-    P[Partition Tolerance<br/>System works despite network splits]
-    C --- A
-    A --- P
-    P --- C
-    CP[CP Systems<br/>MongoDB, HBase] -.-> C & P
-    AP[AP Systems<br/>Cassandra, DynamoDB] -.-> A & P
+    P["Network partition occurs<br/>Not optional — this will happen"] --> Q{"Serve a request you<br/>can't fully coordinate?"}
+    Q -->|"Refuse — stay correct"| CP["CP: reject or block<br/>Consistent, but unavailable"]
+    Q -->|"Answer — stay up"| AP["AP: serve possibly stale data<br/>Available, but inconsistent"]
 \`\`\`
 
-In practice, network partitions happen — you are choosing between consistency and availability during a partition.
+**Real databases are tunable, not fixed points on a triangle.** Labelling a product "CP" or "AP" is usually wrong. DynamoDB is eventually consistent by default but gives you strong reads per-request with \`ConsistentRead\`. Cassandra's behaviour is set by the consistency level on each query — \`ONE\` is firmly AP, \`QUORUM\` trades availability for consistency, and you choose per statement. The trade-off lives at the level of an individual operation, not the product.
+
+**PACELC is the more useful formulation.** It extends CAP with the case that actually dominates your uptime: *if there is a **P**artition, choose **A**vailability or **C**onsistency; **E**lse — when the network is healthy — choose **L**atency or **C**onsistency.* That second half is where most real design effort goes, because partitions are rare and the latency-vs-consistency trade is on every single request.
 
 ## 🧠 Consistency Patterns
 
