@@ -2,3 +2,8 @@ node_modules/
 package.json
 package-lock.json
 baseline-check.js
+mermaid-check.js
+mcheck.js
+paren-test.mjs
+fix-test.mjs
+entity-test.mjs

@@ -145,8 +145,8 @@ flowchart TD
     CPU[CPU Core] --> L1[L1 Cache<br/>32-64 KB, ~1ns]
     L1 --> L2[L2 Cache<br/>256 KB-1 MB, ~5ns]
     L2 --> L3[L3 Cache<br/>4-64 MB, ~15ns<br/>Shared across cores]
-    L3 --> RAM[Main Memory (DRAM)<br/>8-128 GB, ~60-100ns]
-    RAM --> Disk[Storage (SSD/HDD)<br/>~100μs-10ms]
+    L3 --> RAM["Main Memory (DRAM)<br/>8-128 GB, ~60-100ns"]
+    RAM --> Disk["Storage (SSD/HDD)<br/>~100μs-10ms"]
 \`\`\`
 
 Each level is ~10x slower and ~10x bigger than the one above. The goal: keep frequently used data in the fastest cache.

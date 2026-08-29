@@ -1157,8 +1157,8 @@ jobs:
 \`\`\`mermaid
 flowchart TD
     subgraph "Blue-Green"
-        BG1[Blue (current)] --> LB1[Load Balancer]
-        BG2[Green (new)] --> LB1
+        BG1["Blue (current)"] --> LB1[Load Balancer]
+        BG2["Green (new)"] --> LB1
     end
     subgraph "Canary"
         C1[Old version: 95%] --> LB2[Load Balancer]

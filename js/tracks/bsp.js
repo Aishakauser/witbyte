@@ -1212,10 +1212,10 @@ flowchart TD
     CSI -->|pad 1 to pad 0| ISP_IN[ISP Input<br/>rkisp1_isp]
     ISP_IN -->|pad 2 to pad 0| RSZ_MP[Main Path Resizer<br/>rkisp1_resizer_mainpath]
     ISP_IN -->|pad 3 to pad 0| RSZ_SP[Self Path Resizer<br/>rkisp1_resizer_selfpath]
-    RSZ_MP -->|pad 1| VID_MP[/dev/video0<br/>Main capture]
-    RSZ_SP -->|pad 1| VID_SP[/dev/video1<br/>Self capture]
-    ISP_IN -->|pad 1| PARAMS[/dev/video2<br/>ISP parameters]
-    ISP_IN ---|pad 4| STATS[/dev/video3<br/>3A statistics]
+    RSZ_MP -->|pad 1| VID_MP["/dev/video0<br/>Main capture"]
+    RSZ_SP -->|pad 1| VID_SP["/dev/video1<br/>Self capture"]
+    ISP_IN -->|pad 1| PARAMS["/dev/video2<br/>ISP parameters"]
+    ISP_IN ---|pad 4| STATS["/dev/video3<br/>3A statistics"]
 \`\`\`
 
 You must configure each link and set formats on each pad before you can capture frames.
