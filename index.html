@@ -480,7 +480,9 @@ const TRACKS = {
     tagline: 'Beyond coding — SDLC, architecture, databases, APIs, security, production engineering',
     modules: 15,
     hours: 180,
-    phases: ['Foundation — How Systems Are Built','Intermediate — Building Production Systems','Advanced — Production at Scale']
+    phases: ['Foundation — How Systems Are Built','Intermediate — Building Production Systems','Advanced — Production at Scale'],
+    targetRole: 'Software Engineer',
+    whyCare: 'The engineer other engineers trust in production — you will own databases, deploys, monitoring, and the 2am incident response.'
   },
   hw: {
     name: 'Hardware',
@@ -488,7 +490,9 @@ const TRACKS = {
     tagline: 'Digital logic to SoC architecture — processors, memory, buses, RTOS, firmware, silicon lifecycle',
     modules: 14,
     hours: 142,
-    phases: ['Foundation — Digital Systems','Intermediate — Hardware Interfaces','Advanced — Software on Hardware']
+    phases: ['Foundation — Digital Systems','Intermediate — Hardware Interfaces','Advanced — Software on Hardware'],
+    targetRole: 'Hardware / Embedded Engineer',
+    whyCare: 'Bring up boards from bare silicon — read datasheets, debug power rails, choose bus protocols, and ship real hardware.'
   },
   bsp: {
     name: 'BSP',
@@ -497,7 +501,9 @@ const TRACKS = {
     tagline: 'The hardware-OS bridge — boot sequences, kernel drivers, device trees, subsystem deep dives',
     modules: 15,
     hours: 156,
-    phases: ['Foundation — Getting a Board to Boot','Intermediate — Driver & System Development','Advanced — Subsystem Deep Dives']
+    phases: ['Foundation — Getting a Board to Boot','Intermediate — Driver & System Development','Advanced — Subsystem Deep Dives'],
+    targetRole: 'BSP / Systems Software Engineer',
+    whyCare: 'Make Linux boot on new hardware — device trees, kernel drivers, build systems. The most underserved skill in embedded.'
   },
   ai: {
     name: 'AI & ML',
@@ -505,7 +511,9 @@ const TRACKS = {
     tagline: 'Build with AI and build the models underneath — agents, RAG, fine-tuning, deployment',
     modules: 21,
     hours: 246,
-    phases: ['Foundations','Build WITH AI','Make & Fine-tune AI','Capstone']
+    phases: ['Foundations','Build WITH AI','Make & Fine-tune AI','Capstone'],
+    targetRole: 'AI Engineer',
+    whyCare: 'Ship the whole AI product — the app, the RAG pipeline, the agent framework, the eval harness that proves it works, and the serving stack that runs it. You will size GPUs, quantize models, benchmark quality, and deploy to cloud or edge.'
   }
 };
 
@@ -10169,8 +10177,8 @@ function scrollMainTop() {
 // Stack layers for the visualization
 const STACK_LAYERS = [
   {id:'L6',name:'AI apps & agents',lessons:9,track:'ai',color:'ai',desc:'Agents, RAG pipelines, tool use, and production AI systems',outcomes:['Build an agent that calls real tools','Deploy a RAG pipeline end to end','Monitor AI systems in production']},
-  {id:'L5',name:'Model runtime & NPU',lessons:11,track:'ai',color:'ai',desc:'Quantization, runtimes, NPU programming — running models on actual silicon',outcomes:['Quantize a model without killing accuracy','Profile inference on an NPU','Choose the right runtime for your hardware']},
-  {id:'L4',name:'OS & userspace',lessons:14,track:'cs',color:'cs',desc:'Linux userspace, C and Rust, IPC, build systems, real debugging',outcomes:['Write a Linux daemon from scratch','Debug a segfault with gdb and strace','Build a Rust FFI bridge to C']},
+  {id:'L5',name:'Model internals & serving',lessons:11,track:'ai',color:'ai',desc:'Math foundations, transformers, fine-tuning, quantization, eval benchmarks — understand, measure, and serve the models you build with',outcomes:['Quantize a model and benchmark quality vs speed tradeoff','Fine-tune a model for a domain task','Size GPU requirements and serve with vLLM in production']},
+  {id:'L4',name:'OS & userspace',lessons:14,track:'cs',color:'cs',desc:'SDLC, architecture, databases, APIs, security, testing, DevOps, cloud — production software engineering',outcomes:['Design an API that other teams actually want to use','Set up CI/CD that catches bugs before production','Debug a production incident across the full stack']},
   {id:'L3',name:'Kernel & drivers',lessons:12,track:'bsp',color:'bsp',desc:'Kernel modules, device drivers, subsystem internals — the OS layer',outcomes:['Write a character device driver','Trace a kernel panic to its root cause','Navigate the kernel source tree']},
   {id:'L2',name:'Bootloader & device tree',lessons:10,track:'bsp',color:'bsp',desc:'U-Boot, DTS, and the four lines that fix everything at 1am',outcomes:['Follow the U-Boot to kernel handoff','Write a device tree that probes first try','Build an image with Yocto or Buildroot']},
   {id:'L1',name:'Board: buses, power, memory',lessons:8,track:'hw',color:'hw',desc:'Datasheets, schematics, buses, power rails — where the abstraction leaks',outcomes:['Read a schematic and find the I²C address','Debug a power rail that browns out under load','Choose the right bus protocol for your peripheral']},
@@ -10180,7 +10188,7 @@ let activeStackLayer = 2; // Default to L2 (Bootloader & device tree)
 
 function renderStackDetail(idx) {
   const layer = STACK_LAYERS[idx];
-  const trackNames = {ai:'AI on the Edge',cs:'Software & Systems',bsp:'Board Support Package',hw:'Silicon & Boards'};
+  const trackNames = {ai:'AI Engineering',cs:'Software & Systems',bsp:'Board Support Package',hw:'Silicon & Boards'};
   return `
     <div class="sd-badge" style="background:var(--${layer.color}-soft);color:var(--${layer.color})">${trackNames[layer.track]}</div>
     <div class="sd-meta">${layer.id} · ${layer.lessons} lessons</div>
@@ -10209,10 +10217,10 @@ function renderHome() {
   const main = document.getElementById('main');
   const overall = getOverallProgress();
   const trackDescs = {
-    hw: {badge:'HW',subtitle:'Silicon & Boards',desc:'Datasheets, schematics, buses, power. Where the abstraction leaks.',pre:'no prior EE'},
-    bsp: {badge:'BSP',subtitle:'Board Support Package',desc:'U-Boot, device trees, kernel config, drivers, Yocto. Board bring-up.',pre:'needs a board'},
-    cs: {badge:'SW',subtitle:'Software & Systems',desc:'Linux userspace, C and Rust, IPC, build systems, real debugging.',pre:'some coding'},
-    ai: {badge:'AI',subtitle:'AI on the Edge',desc:'Runtimes, quantization, NPUs, and agents that never phone home.',pre:'after SW'}
+    hw: {badge:'HW',subtitle:'Silicon & Boards',desc:'Datasheets, schematics, buses, power. Where the abstraction leaks.',pre:'no prior EE',role:'Hardware Engineer'},
+    bsp: {badge:'BSP',subtitle:'Board Support Package',desc:'U-Boot, device trees, kernel config, drivers, Yocto. Board bring-up.',pre:'needs a board',role:'BSP Engineer'},
+    cs: {badge:'SW',subtitle:'Software & Systems',desc:'SDLC, databases, APIs, security, CI/CD, cloud — production engineering end to end.',pre:'some coding',role:'Software Engineer'},
+    ai: {badge:'AI',subtitle:'AI Engineering',desc:'Agents, RAG, eval harnesses, GPU sizing, quantization — build, measure, and ship production AI.',pre:'after SW',role:'AI Engineer'}
   };
 
   main.innerHTML = `<div class="home">
@@ -10278,6 +10286,7 @@ function renderHome() {
             </div>
             <div class="th-name">${td.subtitle}</div>
             <div class="th-desc">${td.desc}</div>
+            <div style="font-size:12px;font-weight:600;color:var(--${t.color});margin-top:6px">→ ${td.role}</div>
             <div class="th-meta" style="margin-top:10px"><span>~${t.hours}h</span><span style="font-family:var(--mono);font-size:11px">${td.pre}</span></div>
           </div>`;
         }).join('')}
@@ -10356,6 +10365,10 @@ function renderTrackOverview(key) {
     <div class="mod-eyebrow" style="color:var(--${track.color})">${track.name}</div>
     <h1>${track.name}${track.subtitle ? `<span style="display:block;font-size:16px;font-weight:400;color:var(--ink2);margin-top:4px">${track.subtitle}</span>` : ''}</h1>
     <p>${track.tagline}</p>
+    <div style="margin:12px 0 16px;padding:12px 16px;border-radius:8px;background:var(--${track.color}-soft)">
+      <div style="font-weight:700;font-size:14px;color:var(--${track.color});margin-bottom:4px">Target role: ${track.targetRole}</div>
+      <div style="font-size:14px;color:var(--ink2)">${track.whyCare}</div>
+    </div>
     <div class="mod-meta"><span>${prog.done}/${prog.total} modules complete</span><span>~${track.hours} hours</span></div>
     <div class="progress-track">
       <div class="bar"><div class="bar-fill" style="width:${prog.pct}%;background:var(--${track.color})"></div></div>
