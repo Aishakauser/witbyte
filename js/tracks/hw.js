@@ -27,7 +27,9 @@ flowchart LR
 - \`A OR B\` = \`A + B\` — output 1 when either input is 1
 - \`NOT A\` = \`Ā\` — inverts the input
 
-**NAND is universal** — you can build any other gate from NAND gates alone. This is why NAND flash memory exists (simpler to manufacture).
+**NAND is universal** — you can build any other gate from NAND gates alone, which is why CMOS libraries lean on it so heavily: a NAND cell needs only 4 transistors, against 6 for the equivalent AND.
+
+Don't confuse this with NAND *flash*, which is unrelated. Flash is named for how its cells are wired: NAND flash strings cells in series (the shape of a NAND gate's transistor stack), giving high density and cheap sequential access; NOR flash wires them in parallel to the bit line, which costs area but allows random access — which is why NOR flash is what a boot ROM executes from directly.
 
 ### Combinational Circuits
 
@@ -149,7 +151,7 @@ flowchart TD
     RAM --> Disk["Storage (SSD/HDD)<br/>~100μs-10ms"]
 \`\`\`
 
-Each level is ~10x slower and ~10x bigger than the one above. The goal: keep frequently used data in the fastest cache.
+Each level is bigger and slower than the one above, but the steps are uneven — roughly 5x from L1 to L2, 3x from L2 to L3, then a ~4x cliff into DRAM and a ~1000x cliff into storage. That last jump is the one that dominates: it is why a page fault costs more than every cache miss in a tight loop combined. The goal is to keep frequently used data in the fastest level that will hold it.
 
 **Cache concepts:** Cache line (64 bytes typically), cache hit/miss, write-back vs write-through, associativity (direct-mapped, set-associative, fully associative), LRU eviction.
 
@@ -375,10 +377,12 @@ Understand memory technologies (SRAM, DRAM, Flash), the memory management unit, 
 
 | Gen | Data rate | Key improvement |
 |-----|-----------|----------------|
-| DDR4 | 3200 MT/s | Mainstream desktop/server |
-| DDR5 | 6400 MT/s | Higher bandwidth, on-die ECC |
+| DDR4 | up to 3200 MT/s | Mainstream desktop/server |
+| DDR5 | 4800 MT/s at launch, now to 8800 | Higher bandwidth, on-die ECC |
 | LPDDR5 | 6400 MT/s | Low power, mobile/laptop |
-| LPDDR5X | 8533 MT/s | Flagship phones, AI workloads |
+| LPDDR5X | to 9600 MT/s | Flagship phones, AI workloads |
+
+Treat these as a moving ceiling, not a fixed spec — JEDEC keeps raising the top bin within a generation, and LPDDR6 is already specified. What stays true is the shape: LP variants trade peak throughput for a much lower idle power floor, which is why phones use them and servers don't.
 
 ## 🧠 Virtual Memory & MMU
 
@@ -419,7 +423,7 @@ Each level trades speed for capacity. The operating system and hardware conspire
 
 ## ⚠️ Gotcha
 
-**Virtual memory overhead is real on embedded.** Page table walks cost cycles and TLB misses are expensive. On memory-constrained embedded systems, consider hugepages (2MB or 1GB pages) to reduce TLB pressure, or run without an MMU entirely (Cortex-M, ucLinux) if your application doesn't need memory protection. A TLB miss on a 4-level page table (x86-64) costs 4 sequential memory accesses — up to 240ns.
+**Virtual memory overhead is real on embedded.** Page table walks cost cycles and TLB misses are expensive. On memory-constrained embedded systems, consider hugepages (2MB or 1GB pages) to reduce TLB pressure, or run without an MMU entirely if your application doesn't need address translation. Cortex-M parts have no MMU — they have an **MPU**, which enforces access permissions on a handful of regions but does not translate addresses, so there is no per-process virtual address space. (The old \`uClinux\` project that targeted such parts is long defunct; MMU-less support lives in mainline under \`!CONFIG_MMU\`.) A TLB miss on a 4-level page table (x86-64) costs 4 sequential memory accesses — up to 240ns.
 
 **DDR initialization is the most fragile part of board bring-up.** Getting DDR timing parameters wrong (tCAS, tRCD, tRP, tRAS) causes intermittent data corruption that's nearly impossible to debug. Use the silicon vendor's DDR training tools and never hand-tune timing parameters unless you really know what you're doing. One wrong value and your board passes basic tests but corrupts data under sustained load.
 
@@ -451,9 +455,11 @@ Understand the major communication protocols used in embedded systems — when t
 |----------|-------|-------|----------|----------|
 | UART | 2 (TX/RX) | ~115Kbps–1Mbps | Point-to-point | Debug console, GPS, Bluetooth |
 | I2C | 2 (SDA/SCL) | 100K–3.4Mbps | Multi-device bus | Sensors, EEPROM, small peripherals |
-| SPI | 4 (MOSI/MISO/SCK/CS) | Up to 100Mbps+ | Master-slave | Flash, displays, ADC/DAC |
-| PCIe | Differential pairs | Gen5: 128 GB/s | Point-to-point lanes | GPU, NVMe SSD, network cards |
+| SPI | 4 (MOSI/MISO/SCK/CS) | Up to 100Mbps+ | Host–peripheral | Flash, displays, ADC/DAC |
+| PCIe | Differential pairs | Gen5: ~3.9 GB/s per lane | Point-to-point lanes | GPU, NVMe SSD, network cards |
 | USB | 2-4 | USB3: 5-20 Gbps | Host-device tree | Everything external |
+
+**Read PCIe numbers carefully.** Marketing quotes aggregate bandwidth; datasheets quote per-lane. Gen5 runs 32 GT/s per lane, which after 128b/130b encoding is about **3.9 GB/s per lane per direction**. The widely-quoted "128 GB/s" is a x16 link counting both directions at once — a different quantity by a factor of 32. Gen6 (2022) and Gen7 (2025) are also specified now.
 
 \`\`\`mermaid
 flowchart LR
@@ -472,15 +478,15 @@ flowchart LR
 
 \`\`\`mermaid
 sequenceDiagram
-    participant M as Master
-    participant S as Slave (0x48)
+    participant M as Controller
+    participant S as Target at 0x48
     M->>S: START condition
-    M->>S: Address byte (0x48 + Write bit)
+    M->>S: Address byte 0x90 = 0x48 shifted left, R/W=0
     S->>M: ACK
-    M->>S: Register address (0x00 = temperature)
+    M->>S: Register address 0x00 = temperature
     S->>M: ACK
     M->>S: Repeated START
-    M->>S: Address byte (0x48 + Read bit)
+    M->>S: Address byte 0x91 = 0x48 shifted left, R/W=1
     S->>M: ACK
     S->>M: Data byte (temperature MSB)
     M->>S: ACK
@@ -489,12 +495,16 @@ sequenceDiagram
     M->>S: STOP condition
 \`\`\`
 
+**The address is shifted, and this trips up nearly everyone.** A datasheet advertising "I2C address 0x48" means a *7-bit* address. On the wire the controller sends one byte: the 7 address bits shifted left, with the read/write bit in the low position. So 0x48 goes out as **0x90** to write and **0x91** to read. Linux tools and the kernel API take the unshifted 7-bit form (\`i2cdetect\` shows 0x48); a logic analyzer shows you the shifted byte. If a device appears in \`i2cdetect\` but your bare-metal driver never gets an ACK, the missing shift is the first thing to check.
+
 Pull-up resistors (typically 4.7K ohm for 100kHz, 2.2K ohm for 400kHz) are required on both SDA and SCL — I2C uses open-drain signaling. Missing or wrong pull-ups is the number one cause of I2C failures.
+
+**A note on naming:** NXP's I2C specification moved to *controller/target* in Rev. 7, and the Linux kernel has followed. Older datasheets and much existing code still say master/slave — you will meet both, and they mean the same thing.
 
 ## ⌨️ Do This
 1. Read the I2C specification summary — understand START, STOP, ACK/NACK conditions and how the address byte encodes the R/W bit
 2. Look at SPI timing: CPOL/CPHA modes (Mode 0-3) determine when data is sampled vs shifted — draw the timing diagram for Mode 0 (CPOL=0, CPHA=0)
-3. Compare USB generations: USB 2.0 (480 Mbps), USB 3.0 (5 Gbps), USB 3.2 Gen2x2 (20 Gbps), USB4 (80 Gbps) — note how the connector and cable requirements change
+3. Compare USB generations: USB 2.0 (480 Mbps), USB 3.0 (5 Gbps), USB 3.2 Gen2x2 (20 Gbps), USB4 (40 Gbps; 80 Gbps only in USB4 Version 2.0) — note how the connector and cable requirements change, and how little the marketing names tell you
 4. On a Linux system with I2C devices, run \`i2cdetect -y 1\` to scan the bus and list connected device addresses (Raspberry Pi or any embedded Linux board)
 
 ## ⚠️ Gotcha
@@ -509,7 +519,7 @@ Build a protocol comparison chart and bus debugging guide:
 1. Research the actual specifications for I2C, SPI, UART, USB, and MIPI — document wire count, maximum speed, maximum bus length, maximum devices, error detection, and power delivery capability
 2. Create a decision flowchart: given a peripheral type (temperature sensor, 2MP camera, TFT display, NVMe storage, audio codec), determine which protocol fits and why
 3. Find a real product teardown (iFixit) and identify which protocols connect which components — note where MIPI CSI connects the camera and MIPI DSI connects the display
-4. Write a step-by-step I2C debugging checklist: verify pull-up resistor values with a multimeter, check signal integrity with an oscilloscope (rise time < 300ns for 100kHz), scan for devices with \`i2cdetect\`, decode a transaction with a logic analyzer (Sigrok/PulseView)
+4. Write a step-by-step I2C debugging checklist: verify pull-up resistor values with a multimeter, check signal integrity with an oscilloscope (the spec allows rise times up to 1000ns in Standard-mode at 100kHz, tightening to 300ns in Fast-mode at 400kHz and 120ns in Fast-mode Plus at 1MHz), scan for devices with \`i2cdetect\`, decode a transaction with a logic analyzer (Sigrok/PulseView)
 5. Design a sensor board: connect 3 I2C sensors (temperature, humidity, accelerometer), 1 SPI display, and 1 UART GPS module to an MCU — draw the schematic with pull-ups, chip selects, and level shifters where needed
 
 ## ✅ You've mastered this when…
@@ -540,7 +550,9 @@ A PLL takes a low reference frequency and multiplies it up. Clock dividers then 
 
 ## 🧠 DVFS — Dynamic Voltage and Frequency Scaling
 
-Power ∝ Voltage² × Frequency. By reducing both voltage and frequency during light workloads, you save power cubically.
+Dynamic power ∝ Voltage² × Frequency. Lowering both during light workloads is therefore far more effective than lowering frequency alone — frequency buys you a linear saving, voltage a quadratic one.
+
+The "cubic" shorthand you'll often hear assumes voltage scales linearly with frequency, which held in the classical-scaling era but does not at modern operating points: near the minimum voltage a transistor needs to switch reliably, you can keep dropping frequency but you cannot keep dropping voltage. Past that knee the saving degrades toward linear, and static leakage — which DVFS does not address at all — starts to dominate the budget.
 
 **Power gating** goes further — entire blocks are powered off when unused (GPU off when the screen is locked, for example).
 
@@ -549,15 +561,21 @@ Power ∝ Voltage² × Frequency. By reducing both voltage and frequency during 
 Reset is not instantaneous — blocks must be brought up in a specific order. Power-on-reset (POR) initializes the entire chip, but warm resets can target individual subsystems.
 
 \`\`\`mermaid
-flowchart LR
-    POR[Power-On<br/>Reset] --> CLK[Clock<br/>Stabilize PLL<br/>~100us lock time]
-    CLK --> PWR[Power<br/>Domains<br/>Ramp up]
-    PWR --> MEM[Memory<br/>Initialize<br/>DDR training]
-    MEM --> PERIPH[Peripheral<br/>Reset Release]
-    PERIPH --> CPU[CPU<br/>Starts executing<br/>from reset vector]
+flowchart TD
+    POR[Power-On Reset] --> PWR["Power domains ramp<br/>Regulators reach target voltage"]
+    PWR --> CLK["Clocks start<br/>PLL locks, ~50-200us"]
+    CLK --> CPU["CPU released from reset<br/>Executes boot ROM from on-chip SRAM"]
+    CPU --> MEM["Boot ROM / SPL trains DDR<br/>Software running on the CPU"]
+    MEM --> PERIPH["Peripheral resets released<br/>Each after its own clock is stable"]
 \`\`\`
 
-**Reset order matters:** releasing a peripheral's reset before its clock is stable causes undefined register values. Releasing the CPU reset before DDR is trained means the first instruction fetch from RAM returns garbage.
+Two things about this order are worth pinning down, because both are commonly taught backwards.
+
+**Rails before clocks.** A PLL cannot lock to a stable frequency until its supply is at the target voltage. Power sequencing comes first; clock stabilization follows.
+
+**The CPU runs before DRAM works.** DDR training — calibrating the timing and impedance of the DRAM link — is not done by hardware. It is *software*, executing on the CPU, out of on-chip SRAM or ROM where no training is needed. So the CPU necessarily comes out of reset before DRAM is usable, and the first instruction fetch is never from DRAM. This is the same sequence \`bsp-02\` traces from the software side: Boot ROM loads SPL into SRAM precisely because DRAM isn't available yet.
+
+**Reset order still matters** for peripherals: releasing a peripheral's reset before its clock is stable leaves undefined register values, and it is a genuinely nasty bug because it usually appears intermittently.
 
 ## ⌨️ Do This
 
@@ -660,15 +678,19 @@ Understand real-time operating systems — task scheduling, synchronization prim
 
 ## 🧠 RTOS vs General-Purpose OS
 
-| | RTOS | Linux/Windows |
-|---|------|---------------|
-| Scheduling | Deterministic, priority-based | Best-effort, time-sharing |
-| Latency | Microseconds guaranteed | Milliseconds typical |
-| Memory | Static allocation | Dynamic (malloc) |
-| Use case | Motor control, sensor reading | Desktop, server |
+| | RTOS | Stock Linux | Linux with PREEMPT_RT |
+|---|------|---------------|---|
+| Scheduling | Deterministic, priority-based | Best-effort, time-sharing | Priority-based, preemptible |
+| Typical worst-case latency | Single-digit microseconds | Milliseconds, unbounded tail | Tens of microseconds |
+| Memory | Static allocation | Dynamic (malloc) | Dynamic, but lock pages with \`mlockall\` |
+| Use case | Motor control, sensor reading | Desktop, server | Industrial control, audio, robotics |
 
 **Hard real-time:** Missing a deadline is a system failure (airbag, pacemaker).
 **Soft real-time:** Missing a deadline degrades quality (video streaming, UI responsiveness).
+
+**"Linux can't do real-time" is out of date.** PREEMPT_RT — the patch set that makes almost all kernel code preemptible and converts spinlocks to sleeping mutexes — was **merged into mainline in Linux 6.12**, after roughly two decades out of tree. A tuned PREEMPT_RT system reaches tens of microseconds of worst-case latency, which is enough for a great many jobs once reserved for a dedicated RTOS.
+
+That does not make the distinction disappear. An RTOS still wins on the smallest, most constrained parts (a Cortex-M with kilobytes of RAM will not run Linux at all) and where you must *prove* a bound for certification. The honest modern question is not "RTOS or Linux?" but "is my deadline tight enough, and my certification burden heavy enough, to need an RTOS?"
 
 \`\`\`mermaid
 flowchart TD
@@ -711,7 +733,9 @@ sequenceDiagram
 
 ## ⚠️ Gotcha
 
-**Priority inversion killed the Mars Pathfinder.** In 1997, the Sojourner rover experienced repeated system resets because a low-priority task held a mutex that a high-priority task needed, while a medium-priority task ran instead of either. The fix was enabling priority inheritance in the mutex. This is the canonical real-time systems bug — know it cold.
+**Priority inversion nearly ended the Mars Pathfinder mission.** In 1997 the Pathfinder *lander's* VxWorks computer began resetting repeatedly on the Martian surface: a low-priority meteorological task held a mutex on the information bus that a high-priority bus-management task needed, and a medium-priority communications task ran instead of either. The bus task missed its deadline, the watchdog fired, and the system reset — losing a day of science each time. (Sojourner, the rover, was a separate vehicle and was not involved.)
+
+Two details make this the canonical real-time bug. First, it was never reproduced before launch — it only appeared under the exact timing of a loaded system. Second, JPL fixed it *from Earth*: the priority-inheritance flag already existed in the VxWorks mutex, so they uploaded a patch flipping it on. Nothing was lost and the mission succeeded — but the reset loop is what priority inversion looks like in the field.
 
 **"Real-time" doesn't mean "fast."** It means "deterministic." A real-time system that responds in exactly 10ms every time is better than one that usually responds in 1ms but occasionally takes 100ms. Worst-case execution time (WCET) matters more than average-case.
 
@@ -922,7 +946,7 @@ flowchart TD
 
 **An oscilloscope shows you voltage; a logic analyzer shows you protocol.** If your I2C bus isn't working, the oscilloscope tells you if the signal integrity is bad (voltage levels, rise times). The logic analyzer tells you if the protocol is wrong (wrong address, missing ACK). Use the right tool for the right question.
 
-**FPGA ≠ production silicon.** FPGA prototypes run 5-10x slower than the final ASIC, consume more power, and have different timing characteristics. A design that works on FPGA might fail on silicon due to timing closure issues. FPGA prototyping validates functionality, not performance.
+**FPGA ≠ production silicon.** FPGA prototypes typically clock at 5–50 MHz against an ASIC's 2–3 GHz — that is **50–500x slower**, not a small factor. It is why booting Linux on an FPGA prototype can take hours, and why hardware emulators exist as a separate (and very expensive) tier between simulation and FPGA. Prototypes also draw more power and have different timing characteristics, so a design that works on FPGA can still fail silicon timing closure. FPGA prototyping validates functionality, not performance.
 
 ## 🛠️ Mini-Project
 
@@ -1054,7 +1078,7 @@ flowchart LR
 
 ## ⚠️ Gotcha
 
-**Process node names are marketing, not measurements.** "3nm" doesn't mean any transistor feature is 3 nanometers. Intel's "Intel 7" is roughly equivalent to TSMC's "N5." Compare nodes by transistor density (millions of transistors per mm²) and power/performance metrics, not names.
+**Process node names are marketing, not measurements.** "3nm" doesn't mean any transistor feature is 3 nanometers. Intel's "Intel 7" lands near TSMC's **N7** on density — roughly 100 vs 91 million transistors per mm² — which is exactly why Intel renamed it from "10nm Enhanced SuperFin": the old name made a competitive node sound two generations behind. Intel's N5-class analogue is **Intel 4**. Compare nodes by transistor density and power/performance metrics, never by name.
 
 **Silicon bring-up has no undo button.** If OTP fuses are blown incorrectly (wrong security keys, wrong configuration), those chips are permanently bricked. Bring-up engineers work with million-dollar wafers and irreversible operations. This is why simulation and emulation happen exhaustively before tapeout.
 
