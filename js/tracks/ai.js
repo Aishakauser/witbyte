@@ -3,6 +3,19 @@ export const AI_MODULES = [
 ## 🎯 Goal
 Set up a professional development environment you'll use throughout every track. Install and configure VS Code, a terminal, Node.js, and Python — the two runtimes that power modern AI application development.
 
+
+## 🌍 How Claude Does This
+Install both provider SDKs now, because this track shows Anthropic and OpenAI side by side throughout:
+
+\`\`\`bash
+pip install anthropic openai
+# or: npm install @anthropic-ai/sdk openai
+\`\`\`
+
+Keys go in the environment, never in code — \`ANTHROPIC_API_KEY\` and \`OPENAI_API_KEY\` — and \`.env\` goes in \`.gitignore\` before you write the first line. A leaked key is somebody else's bill.
+
+Working against two providers from the start is deliberate. It keeps provider-specific quirks visible instead of letting you mistake one vendor's API shape for how LLMs work in general, and it makes the abstraction layers in later modules earn their place rather than being taken on faith.
+
 ## 🧠 Your Toolchain
 
 You need four things before you write a single line of code:
@@ -194,6 +207,14 @@ Run it every time you set up a new machine.
 ## 🎯 Goal
 Use Git for version control and GitHub for collaboration. Understand branching, merging, pull requests, and the mental model behind Git's directed acyclic graph — not just the commands, but what they actually do to your history.
 
+
+## 🌍 How Claude Does This
+Two habits from this module matter more once AI enters the repo.
+
+**Secrets.** An API key committed to a public repo is scraped within minutes — bots watch the GitHub event firehose for exactly this. If it happens, rotate the key first and rewrite history second; the key is compromised the moment it is pushed, and deleting the commit does not un-leak it.
+
+**Diffs are how you review AI-written code.** Increasingly the code arriving in a PR was drafted by a model — Claude Code and similar tools work directly against a git repo, branching and committing like any contributor. That does not lower the review bar, it raises the value of reading diffs carefully. A confident-looking change that compiles is exactly the kind of thing that slips through.
+
 ## 🧠 Why Version Control
 
 Without version control, your "backup" strategy is \`final_v2_FINAL_REAL.py\`. With Git, every change is a snapshot you can return to, compare, or branch from.
@@ -341,6 +362,16 @@ wandb/                # Experiment tracking logs
 {id:'ai-02',num:'02',title:'Web Foundations',hours:10,phase:0,topics:['HTTP','DOM','HTML/CSS/JS'],content:`
 ## 🎯 Goal
 Understand how the web works at the protocol level. Know HTTP, the DOM, and enough HTML/CSS/JS to build interfaces for AI applications. This isn't "learn web dev from scratch" -- it's "learn the web stack fast so you can ship AI tools that humans can actually use."
+
+
+## 🌍 How Claude Does This
+Streaming is where a chat UI is won or lost, and Claude's API illustrates the mechanics well.
+
+A streaming response arrives as a sequence of typed events — \`message_start\`, then \`content_block_delta\` frames carrying text fragments, then \`message_stop\`. You render each delta as it lands, which is why the answer appears to type itself instead of materialising after ten seconds of blank screen. The total time is identical; the *perceived* time is not.
+
+**This is also why \`EventSource\` is the wrong tool.** The browser's built-in SSE client can only issue GET requests and cannot set headers — so it cannot send an \`Authorization\` header and cannot carry a conversation history in a body. Real chat UIs POST with \`fetch\` and read \`response.body\` as a stream. If your first instinct is \`new EventSource(...)\`, you will hit that wall within an hour.
+
+Both providers also recommend streaming for any long response for a plainer reason: a non-streaming request that runs for minutes can simply hit an HTTP timeout.
 
 ## 🧠 How the Web Works
 
@@ -538,6 +569,14 @@ You'll use \`fetch\` to call LLM APIs, SSE or streaming \`fetch\` to display res
 {id:'ai-03',num:'03',title:'MERN Stack',hours:14,phase:0,topics:['React','Express','MongoDB','Node'],content:`
 ## 🎯 Goal
 Build full-stack applications with the MERN stack — MongoDB, Express, React, Node.js. This is the stack most AI application prototypes are built on: a React frontend for the UI, an Express/Node backend for API routing and LLM orchestration, and MongoDB for storing conversations, embeddings, and user data.
+
+
+## 🌍 How Claude Does This
+Put a model selector in the app from the beginning — Claude and GPT, switchable at runtime.
+
+It costs almost nothing to build (one field on the request) and it teaches something no single-provider tutorial can: the *same* prompt produces visibly different output across models. Different verbosity, different formatting instincts, different willingness to say "I don't know". Watching that divergence is what stops you from over-fitting your prompts to one model's habits — a real cost when that model is later deprecated.
+
+It also forces a small piece of good architecture: the provider call ends up behind an interface instead of scattered through your components, which is what makes the abstraction discussion in \`ai-08\` concrete rather than theoretical.
 
 ## 🧠 The MERN Architecture
 
@@ -738,6 +777,16 @@ This is the app you'll use to test prompts throughout the rest of the AI track.
 ## 🎯 Goal
 Take the MERN skills from the previous module and ship a real web application — with authentication, deployment, and a project structure that won't collapse at 5,000 lines. This is where you learn the difference between "it works on my laptop" and "it works in production."
 
+
+## 🌍 How Claude Does This
+This is where the app stops being a demo, and the AI-specific failure modes are mostly about **cost and abuse** rather than correctness.
+
+**Every request spends money.** An unauthenticated endpoint that proxies to a model API is a stranger's free compute. Rate-limit per user, cap \`max_tokens\`, and reject oversized inputs *before* forwarding them — not after.
+
+**Handle provider errors as a category.** Both APIs return 429 with a \`retry-after\` header under load, and 5xx for overload. Retry with exponential backoff and jitter, and surface something honest to the user when you give up. An app that silently spins on a 429 looks broken.
+
+**Timeouts must be generous.** A thoughtful response to a hard question can take a while. Default HTTP client timeouts are usually too short for LLM calls, which is a common first production surprise.
+
 ## 🧠 Project Structure That Scales
 
 A flat file dump stops working fast. Organize your project so a new contributor can find anything in under 30 seconds:
@@ -935,6 +984,16 @@ This is a small but complete production app. If you can build and deploy this, y
 ## 🎯 Goal
 Automate repetitive workflows by connecting APIs, webhooks, and scheduled tasks. This is the bridge between "I built a web app" and "I built a system that works while I sleep." Every AI agent you'll build later is fundamentally an automation — an LLM orchestrating API calls on your behalf.
 
+
+## 🌍 How Claude Does This
+Automation is where AI systems quietly become expensive and where the security model gets interesting.
+
+**Scheduled work has no human in the loop.** A cron job that calls a model at 3am has nobody to notice it looping, so budgets and step limits are not optional there the way they feel optional in a chat UI.
+
+**Webhooks bring untrusted text into a trusted context.** A GitHub issue body, a support email, a Slack message — all of it is attacker-controllable, and all of it is about to be concatenated into a prompt. This is indirect prompt injection, and it is the reason \`ai-11\` treats it as the more dangerous variant: nobody is watching, and the input arrived from the outside world by design.
+
+Build the habit now: text that arrives from a webhook is *data*, not instructions, and the system prompt should say so explicitly.
+
 ## 🧠 APIs — The Glue of Modern Software
 
 An API (Application Programming Interface) is a contract: "Send me this, I'll give you that." You've already used the OpenAI API. Now learn to work with any API systematically.
@@ -1114,6 +1173,16 @@ Deploy it and test it by creating real issues on a test repo.
 {id:'ai-06',num:'06',title:'AI Foundations',hours:14,phase:1,topics:['LLMs','Prompting','Embeddings','RAG','Vector DBs'],content:`
 ## 🎯 Goal
 Understand how LLMs actually work (conceptually, not mathematically — that comes in Track B), master prompt engineering, and build your first RAG pipeline. This module is the foundation everything else in the AI track rests on.
+
+
+## 🌍 How Claude Does This
+This module's ideas are directly observable against a real API, which makes them worth testing rather than believing.
+
+**Context window as a budget.** Claude Opus 5 and Sonnet 5 take 1M tokens; Haiku 4.5 takes 200K. Since you are billed per token, the window is simultaneously a capacity limit and a cost dial — and a large window is a ceiling, not a target. Retrieving the right 4K beats stuffing 400K, on both quality and price.
+
+**Prompt caching changes RAG economics.** If a long stable prefix — a system prompt, a document, a tool list — repeats across calls, it can be cached so subsequent requests re-read it far more cheaply than they wrote it. The catch is that caching is a *prefix* match: one changed byte early in the prompt invalidates everything after it. So stable content goes first and volatile content (timestamps, the user's question) goes last. Get that ordering wrong and your cache hit rate is silently zero.
+
+**Build the corpus you will reuse.** Index a documentation set you actually care about now — provider docs work well — because the following modules keep improving *this same* pipeline. Measuring one system getting better across five modules teaches more than five disconnected demos.
 
 ## 🧠 What Is an LLM?
 
@@ -1356,6 +1425,20 @@ Build a "Documentation Q&A Bot" that:
 ## 🎯 Goal
 Understand AI agents — programs where an LLM decides what to do next, calls tools, and loops until the task is done. Learn the agent loop, tool design, memory architectures, multi-agent patterns, and state management.
 
+
+## 🌍 How Claude Does This
+**Claude Code is the most inspectable agent loop available to you**, because you can run it and watch every step.
+
+It is exactly the architecture on this page: a model, a set of tools (read a file, edit it, run a command, search), and a loop that runs until the task is done or a budget is exhausted. Nothing more exotic than that.
+
+Three design decisions are worth stealing:
+
+**Tools are small and composable** — read, write, search, execute — rather than one \`do_the_task\` tool. The model composes them, which is what makes the agent general instead of scripted.
+
+**Dangerous actions require permission.** Editing a file or running a command prompts first. The agent proposes; the human disposes. That boundary is the practical answer to "excessive agency" (LLM06 in \`ai-11\`) — you constrain what the loop can do unsupervised, not just what you hope it will do.
+
+**The loop has limits.** Step budgets and context management exist because an unbounded agent loop is a way to spend a lot of money discovering an infinite loop.
+
 ## 🧠 What Is an AI Agent?
 
 A chatbot answers questions. An agent takes actions. The difference is the loop:
@@ -1561,6 +1644,14 @@ Include a conversation mode where the user can ask follow-up questions about the
 ## 🎯 Goal
 Use LangChain to build LLM applications faster. Understand chains, tools, retrievers, and output parsers — the abstractions that save you from writing boilerplate. But also understand when LangChain's abstractions help vs when they get in the way.
 
+
+## 🌍 How Claude Does This
+Build the same chain twice — once with \`ChatAnthropic\`, once with \`ChatOpenAI\` — and swap between them with one line.
+
+That exercise answers the question this module should raise but usually does not: **is the abstraction worth it?** A framework earns its complexity if switching providers is genuinely a one-line change. If you find yourself writing provider-specific branches inside the chain, the abstraction is leaking and you are paying for indirection without getting portability.
+
+It is a fair test either way, and the answer is not always yes. Sometimes two thin direct SDK calls are clearer than one framework abstraction over both. Running the comparison yourself is worth more than any framework's marketing.
+
 ## 🧠 Why LangChain Exists
 
 In the previous modules, you built an agent loop and RAG pipeline from scratch. LangChain wraps those patterns into reusable components:
@@ -1763,6 +1854,14 @@ Build a "Document Analyst" using LangChain:
 {id:'ai-09',num:'09',title:'LangGraph',hours:12,phase:1,topics:['Stateful graphs','Multi-agent','HITL'],content:`
 ## 🎯 Goal
 Build complex, stateful AI workflows with LangGraph. Understand graph-based agent architectures, conditional routing, human-in-the-loop (HITL), and how to handle the workflows that a simple chain can't express — branching, looping, parallel execution, and persistent state.
+
+
+## 🌍 How Claude Does This
+Human-in-the-loop is easiest to model on a tool you can watch: Claude Code pauses before editing a file or running a command, shows exactly what it intends to do, and waits.
+
+Notice the shape of that interaction, because it is the shape LangGraph's \`interrupt\` implements. The graph runs until it reaches a node needing approval, **persists its state**, and stops. It is not blocking a thread — the process can exit entirely and resume later from a checkpoint. That is why resuming is \`invoke(None, config)\` rather than passing fresh input: the state already exists, you are continuing it, not restarting it.
+
+The design lesson generalises beyond approval prompts: any agent that runs longer than a request timeout needs durable state, and once state is durable, pausing for a human is nearly free.
 
 ## 🧠 Why LangGraph?
 
@@ -1983,6 +2082,16 @@ Use checkpointing so the pipeline can be paused and resumed. Track iteration cou
 ## 🎯 Goal
 Instrument your LLM applications with observability — traces, scores, and evaluation. Know what your AI is doing, how well it's doing it, and how much it costs. Langfuse is the open-source observability platform we'll use, but the concepts apply to any LLM monitoring tool.
 
+
+## 🌍 How Claude Does This
+Trace a real Claude call and look at the token accounting, because it contains the single highest-leverage cost lever in this track.
+
+Usage is reported in four separate numbers, not one: ordinary input tokens, **cache-write** tokens, **cache-read** tokens, and output tokens. Cache writes cost somewhat more than normal input; cache reads cost dramatically less. For a RAG system re-sending the same system prompt and documents on every call, that difference is most of the bill.
+
+**And the diagnostic is trivial once you know to look.** If \`cache_read_input_tokens\` is zero across repeated calls that should share a prefix, caching is silently not working — usually because something volatile (a timestamp, a request id, an unsorted JSON blob) crept into the prefix and invalidates it every time. Nothing errors. The bill just stays high.
+
+Put that number on a dashboard next to latency and accuracy. Cost is an observable property of the system, and this module is where it should become one.
+
 ## 🧠 Why LLM Observability?
 
 Traditional software fails with stack traces. LLM applications fail silently — they return confident wrong answers. Without observability, you have no way to know:
@@ -2165,6 +2274,18 @@ Build an "LLM Quality Dashboard":
 ## 🎯 Goal
 
 Understand the security threats specific to LLM applications — prompt injection, data exfiltration, excessive agency, and supply chain risks. Build **layered defenses** including guardrails, data privacy controls, and monitoring. Then **red-team** your own systems before attackers do. This is not optional — if your agent can call APIs, it can be weaponized.
+
+
+## 🌍 How Claude Does This
+Red-team against a real model rather than a substring check, because the gap between the two is the whole lesson.
+
+Frontier models ship with substantial safety training, so direct attacks — "ignore your instructions" — mostly fail on their own. That is exactly why it is a good exercise: you find out quickly that the interesting attacks are **indirect**, arriving through a retrieved document, a webhook payload, or a tool result, where your own system concatenated attacker text into the prompt without anyone reviewing it.
+
+Two things follow, and they are the practical core of this module:
+
+**Model-level safety is not your application's security boundary.** It is one layer. Your authorization checks, your tool permissions, and your output handling are the layers you control — and they are the ones an attacker actually has to get past.
+
+**Guardrails that check strings are theatre.** Blocking the phrase "medical diagnosis" does not stop the behaviour; it stops that phrase. Constrain what the agent can *do* — which tools, which scopes, which resources — rather than trying to enumerate what it must not say.
 
 ## 🧠 Concept
 
@@ -2504,6 +2625,14 @@ RED_TEAM_CASES = [
 
 Build an **evaluation harness** that measures how well your AI system performs — then wire it into CI so every code change is tested against real quality metrics, not just vibes.
 
+
+## 🌍 How Claude Does This
+Use a cheaper model as the judge — Haiku-class rather than a frontier model — for the reason this module already argues: judging is a narrower task than generating, so it does not need the same capability, and evals run often enough that the cost difference compounds.
+
+**The judge needs the same discipline as the system under test.** Give it a rubric with explicit criteria, not "is this good?". Ask for structured output so you get a parseable score rather than prose you must regex. And validate the judge itself against a set you have labelled by hand — an unvalidated LLM judge is a confident number with unknown correlation to reality, which is worse than no number.
+
+**Do not apply one threshold to every category.** A ~15% failure rate on hard reasoning cases may be perfectly acceptable. On *safety* cases the target is zero, and averaging the two into a single pass rate hides exactly the failures you most need to see. Tag your cases and threshold each tag separately.
+
 ## 🧠 Concept
 
 ### Why Eval Matters More Than Unit Tests
@@ -2805,6 +2934,14 @@ async function evalAgent(agent, scenario) {
 
 Graduate from basic RAG to **production-grade retrieval** — hybrid search, re-ranking, chunking strategies — then build **MCP servers** that let any AI client use your tools through a standard protocol.
 
+
+## 🌍 How Claude Does This
+This module has the platform's strongest existing anchor already — MCP with Claude Desktop — and it is worth extending it.
+
+**Both transports, and why.** stdio is the local case: the client launches your server as a subprocess and speaks JSON-RPC over its pipes. Streamable HTTP is the remote case, and it superseded the older HTTP+SSE transport, which was deprecated in the 2025-03-26 spec revision. Build stdio first because it is trivial to debug, then port to HTTP and watch what changes — authentication suddenly matters, because a remote server is reachable by more than the user who launched it.
+
+**MCP is why re-ranking pays off here.** A tool description is context: the model reads it to decide what to call. Vague descriptions produce wrong tool choices for the same reason vague chunks produce wrong retrievals, and both are fixed by being specific about what a thing is *for*.
+
 ## 🧠 Concept
 
 ### Where Basic RAG Falls Short
@@ -3004,6 +3141,16 @@ await server.connect(transport);
 ## 🎯 Goal
 
 Ship AI applications like a professional engineer — **Docker** for reproducible environments, **TypeScript** for type-safe AI code, **OAuth** for real authentication, and **testing/CI** that catches regressions before users do.
+
+
+## 🌍 How Claude Does This
+Provider error handling is the concrete backoff exercise this module wants.
+
+Both APIs distinguish failures you should retry from failures you should not. **429** (rate limited) and **529 / overloaded** are transient — back off and try again, honouring \`retry-after\` when it is present. **400** (malformed request) and **401** (bad key) will fail identically forever; retrying them wastes time and money.
+
+So catch specific error types rather than one broad exception. Both SDKs export typed errors precisely so you can branch on them instead of string-matching messages, which breaks the moment a message is reworded.
+
+Two habits worth building here: **exponential backoff with jitter**, because synchronised retries from many clients recreate the overload you are backing off from; and **a retry cap**, because unbounded retries turn a provider incident into your incident.
 
 ## 🧠 Concept
 
@@ -3281,6 +3428,14 @@ describe("agent response handling", () => {
 
 Build the **mathematical intuition** behind machine learning — vectors, matrices, loss functions, gradient descent, and overfitting — so the frameworks you use in the next modules aren't black boxes.
 
+
+## 🌍 How Claude Does This
+This module is deliberately provider-free — gradient descent and cross-entropy are mathematics, not an API — but it is worth knowing where the maths surfaces in tools you already use.
+
+Cross-entropy is the loss these models were trained with, and it is also the quantity behind **log probabilities**: the model's confidence in each token it produced. Perplexity, which you will meet in \`ai-19\`, is just the exponential of average cross-entropy.
+
+So the loss function on this page is not only a training-time concern. It is the same number that tells you, at inference time, how sure the model was — and it is the honest basis for confidence estimates, as opposed to asking a model to rate its own certainty in prose.
+
 ## 🧠 Concept
 
 ### Why Math Matters Now
@@ -3470,6 +3625,14 @@ X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5)
 ## 🎯 Goal
 
 Build and train your first **neural network** in PyTorch — understand backpropagation, write a training loop from scratch, and classify handwritten digits with >97% accuracy.
+
+
+## 🌍 How Claude Does This
+Also provider-agnostic, and that is the point: everything in the API modules bottoms out here.
+
+A frontier model is this — matrix multiplications, non-linearities, backpropagation — at a scale that changes the engineering but not the mathematics. Understanding a two-layer network trained on MNIST is what separates using an API from knowing what is behind it.
+
+One practical note that carries forward: batch size, learning rate and normalisation choices matter as much as architecture, and they are where most training runs actually fail. That is equally true of the LoRA fine-tuning in \`ai-18\` — the hyperparameters, not the model, are usually what went wrong.
 
 ## 🧠 Concept
 
@@ -3680,6 +3843,16 @@ Every PyTorch training loop follows the same five steps: **(1)** forward pass �
 
 Understand what happens inside an LLM — from raw text to tokens, through the **Transformer architecture** (attention, feed-forward, residual connections), to the massive pretraining process that produces models like GPT and Claude.
 
+
+## 🌍 How Claude Does This
+The honest anchor here is a distinction worth teaching explicitly.
+
+**Study a published architecture.** Llama and Qwen release weights and papers, so you can read exactly how they work: RoPE rather than learned positional embeddings, pre-norm with RMSNorm rather than post-norm LayerNorm, grouped-query attention to shrink the KV cache. That is a real, current, inspectable transformer.
+
+**Claude's architecture is not published**, and no honest curriculum should pretend otherwise. What *is* documented is behaviour you can measure: context window, tokenizer behaviour via \`count_tokens\`, streaming event structure, prompt-caching semantics.
+
+Holding both is the lesson. Open-weight models teach you how transformers work; closed models teach you to reason from measured behaviour rather than assumed internals. Confusing the two — asserting things about a closed model's internals because an open one works that way — is a common and avoidable error.
+
 ## 🧠 Concept
 
 ### Tokenization — Text to Numbers
@@ -3883,6 +4056,23 @@ Rule of thumb for rough estimates only: 1 token is roughly 4 characters or 0.75 
 ## 🎯 Goal
 
 Learn when and how to **fine-tune** an LLM for your specific use case — using **LoRA** and **QLoRA** to make it practical on consumer hardware, with proper dataset preparation and evaluation.
+
+
+## 🌍 How Claude Does This
+The most useful thing this module can tell you is when **not** to fine-tune.
+
+**You cannot fine-tune Claude**, and that constraint is clarifying rather than limiting, because it forces the real comparison:
+
+| Goal | Better approach |
+|---|---|
+| The model lacks *knowledge* | RAG — cheaper, updatable, and citable |
+| The model needs a consistent *format or behaviour* | Prompting first; fine-tuning if prompting plateaus |
+| You need a specific tone at very high volume | Fine-tune a small open model |
+| Latency and per-token cost dominate | Fine-tune a small model you host |
+
+Fine-tuning teaches *behaviour*, not facts. Fine-tuning to add knowledge is the classic expensive mistake: you pay for a training run, the knowledge is frozen at that moment, and RAG would have done it better and stayed current.
+
+The honest framing for a production decision is a three-way comparison — a frontier API with good prompting and caching, versus RAG, versus a fine-tuned open model you serve yourself — priced and measured on the same eval set.
 
 ## 🧠 Concept
 
@@ -4088,6 +4278,20 @@ model = AutoModelForCausalLM.from_pretrained(
 
 Learn to **evaluate, optimize, and serve** LLMs in production — benchmarking, quantization for efficiency, high-throughput inference with vLLM, and on-device deployment for edge applications.
 
+
+## 🌍 How Claude Does This
+Make this module a real cost-and-quality comparison rather than a tour of techniques. Run the same eval set three ways:
+
+1. **A hosted API**, cheap tier — no GPU, per-token cost, someone else's uptime
+2. **An open model on vLLM**, self-hosted — fixed GPU cost, unbounded tokens, your uptime
+3. **A quantized model on a laptop** — free, private, slower and weaker
+
+Then compare accuracy, p95 latency and cost per thousand requests. The crossover is the whole decision: below some volume the API wins on total cost including your time; above it, self-hosting does.
+
+**Two numbers people get wrong.** Model weights are not the memory requirement — the **KV cache** grows with context length and concurrency, and at useful context sizes it can rival or exceed the weights. "4-bit 8B fits in 4GB" is true for the weights and false for the server.
+
+And **prompt caching is a serving-cost lever too**. Before reaching for a smaller model to save money, check whether restructuring prompts so the stable prefix is cacheable gets you there without giving up quality.
+
 ## 🧠 Concept
 
 ### LLM Benchmarks — Measuring What Matters
@@ -4270,6 +4474,22 @@ print(output["choices"][0]["message"]["content"])
 ## 🎯 Goal
 
 Ship a **production-grade AI assistant** that combines everything you've learned — from web fundamentals to transformers. This is the capstone: one project that proves you can design, build, deploy, evaluate, and maintain an AI system end to end.
+
+
+## 🌍 How Claude Does This
+Ship one thing that is genuinely useful to you: **a documentation assistant for a repository or product you actually know**. You will spot wrong answers instantly, which is what makes the eval loop real rather than ceremonial.
+
+Deliver it as *both* a web app and an MCP server. Same retrieval core, two surfaces — which forces a clean separation between your pipeline and its interface, and gives you the MCP work from \`ai-13\` in a real setting.
+
+**Sign-off criteria worth holding yourself to:**
+
+- An eval set of 30+ real questions, scored, with results checked into the repo
+- Citations on every answer, and a measured refusal rate on questions the docs do not cover
+- Cost per query measured, with prompt caching in place and its hit rate verified non-zero
+- Traces for every request, so a bad answer can be diagnosed rather than guessed at
+- Streaming, so first output arrives quickly — aim for a couple of seconds end to end with retrieval and re-ranking in the path, and measure it rather than asserting it
+
+That last point matters: a hard latency target you have not measured is not a requirement, it is a wish.
 
 ## 🧠 Concept
 
