@@ -4,6 +4,18 @@ content:`
 ## 🎯 Goal
 Understand the full software development lifecycle — not just the code-writing part. Know when to use Waterfall vs Agile vs Kanban, how to estimate work, and why "technical debt" isn't just a buzzword.
 
+
+## 🌍 How Amazon Does This
+Amazon's process choices are unusually legible because they were written down and copied widely.
+
+**Two-pizza teams.** Teams small enough to feed with two pizzas, each owning a service end to end — build it, deploy it, carry the pager. The point was not team size for its own sake; it was to cut the *communication* cost that makes large teams slow, and to put the people who wrote the code on the receiving end of its failures.
+
+**Working backwards.** A new product starts by writing the press release and FAQ *first*, before any code. If you cannot describe the finished thing compellingly in a page, the idea is not ready. It is a requirements process disguised as a writing exercise, and it kills weak ideas before they consume a quarter.
+
+**Narrative memos over slide decks.** Meetings open with everyone silently reading a six-page written document. Prose forces you to expose reasoning that bullet points let you hide — which is the same reason a design doc catches problems a diagram does not.
+
+None of this is Agile or Waterfall as taught. It is worth seeing precisely because it does not fit the frameworks above: process is a tool you shape to the work, not a ceremony you adopt whole.
+
 ## 🧠 The SDLC — Why Process Matters
 
 Every piece of software goes through a lifecycle. The question is whether you manage it intentionally or let it happen chaotically.
@@ -131,6 +143,18 @@ Pick any project you've built or want to build. Write a one-page plan covering:
 content:`
 ## 🎯 Goal
 Read and draw architecture diagrams. Understand the trade-offs between monolithic, microservice, and serverless architectures. Know when event-driven is the right call.
+
+
+## 🌍 How Amazon Does This
+Amazon ran a single monolith in 2001. Getting out of it produced the most-cited architectural decision in the industry.
+
+**The API mandate.** Teams must expose their data and functionality only through service interfaces, with no back doors — no direct database reads, no shared-memory shortcuts. Every interface must be designed as if it were externally facing. The consequence was severe and deliberate: if the only way to reach another team's data is their API, then teams can deploy independently, and nobody can quietly couple to someone else's schema.
+
+That last clause did something else too. Building every internal service as if strangers would use it is what made AWS possible — the infrastructure was already externalisable because it had been built to that standard internally.
+
+**What it cost.** The monolith was fast to develop in and hard to scale. Thousands of services are the reverse: independently deployable, but a single product page now fans out to a hundred-plus service calls, and you inherit distributed-systems problems that a monolith simply does not have — partial failure, network latency, and debugging a request across dozens of hops.
+
+The mandate is worth studying as a *trade*, not a recipe. Amazon paid that complexity because independent deployment at their headcount was worth more. At ten engineers, it usually is not.
 
 ## 🧠 Architecture Patterns
 
@@ -261,6 +285,16 @@ Design the architecture for a note-taking app that supports real-time collaborat
 content:`
 ## 🎯 Goal
 Design a database schema, write non-trivial SQL, understand indexing and transactions, and know when to reach for NoSQL.
+
+
+## 🌍 How Amazon Does This
+A single Amazon order touches several stores, chosen deliberately — the "which database?" question in this module, answered per workload rather than once.
+
+**The order itself is relational and must be ACID.** Payment captured, inventory decremented, order created: either all of it happens or none of it does. Charging a customer for an item you cannot ship is not a consistency edge case, it is a refund and a complaint.
+
+**The cart is a different problem.** It must be always-writable and enormous, and it tolerates being briefly stale — a design that fits a key-value store far better than a relational one. Dynamo, the system Amazon built for shopping-cart-shaped workloads, is the direct ancestor of DynamoDB, and its original paper is the reason "eventually consistent" entered everyday vocabulary.
+
+**Denormalisation earns its place here.** A product page shows a review count. Computing it with \`COUNT(*)\` over a review table on every page view is unaffordable at that traffic, so the count is stored on the product and updated as reviews arrive. That is a deliberate violation of the normalisation rules above, made for a measured reason — which is the only good reason to break them.
 
 ## 🧠 Relational Databases — Still the Default
 
@@ -424,6 +458,16 @@ content:`
 ## 🎯 Goal
 Design APIs that developers actually want to use. Understand REST (properly), GraphQL, gRPC, and WebSockets — and when each is the right tool.
 
+
+## 🌍 How Amazon Does This
+Amazon runs both kinds of API in this module, and the split is instructive.
+
+**External APIs are conservative.** The public Product Advertising API is REST-ish over HTTP with versioned endpoints, cursor pagination and strict rate limits. It is deliberately boring, because thousands of third parties depend on it and you cannot ask them all to migrate.
+
+**Internal APIs are not.** Service-to-service traffic favours binary protocols and generated clients, where the schema is the contract and the wire format is compact — the trade every large system makes once call volume is internal and both ends deploy together.
+
+**Pagination is where scale shows.** Offset pagination (\`LIMIT 20 OFFSET 10000\`) makes the database count past ten thousand rows it will discard, and it produces duplicates and gaps when the underlying data changes between pages. Cursor pagination — "everything after this opaque token" — is stable under writes and stays cheap however deep you go. On a catalogue of hundreds of millions of items, that is not a refinement; offset pagination simply does not work.
+
 ## 🧠 What Is an API?
 
 An API (Application Programming Interface) is a contract between two pieces of software. "Send me this, and I'll give you that back."
@@ -572,6 +616,18 @@ Build a complete API with these requirements:
 content:`
 ## 🎯 Goal
 Understand what happens between "the client sends a request" and "the server receives it." Debug CORS errors, TLS failures, and DNS issues instead of guessing.
+
+
+## 🌍 How Amazon Does This
+Loading a single Amazon product page exercises nearly everything in this module, in order.
+
+**DNS** resolves \`amazon.com\` — try \`dig amazon.com\` and note *several* A records with a short TTL. That is load distribution and fast failover, and the low TTL is what lets them move traffic in minutes.
+
+**TLS 1.3** completes the handshake in one round trip instead of two, having dropped static RSA key exchange so that every session gets forward secrecy. On a mobile connection with 100ms of latency, removing one round trip is visible to a human.
+
+**CDN** serves the images from a nearby edge, not from Virginia. Physics sets a floor here: light does not cross the Atlantic faster than about 30ms, so the only way to beat it is to not cross it.
+
+**HTTP/2 multiplexing** carries the 60-plus images for that page over one connection. Under HTTP/1.1 the browser would open six connections and queue the rest — head-of-line blocking, which is what multiplexing was built to remove.
 
 ## 🧠 The TCP/IP Stack
 
@@ -747,6 +803,18 @@ content:`
 ## 🎯 Goal
 Implement secure authentication and authorization. Understand OAuth 2.0 flows, JWTs (and their pitfalls), and role-based access control.
 
+
+## 🌍 How Amazon Does This
+Amazon runs three distinct identity systems, and knowing why is worth more than memorising the flows.
+
+**"Login with Amazon"** is the OAuth flow on this page. A third-party site sends you to Amazon, you authenticate *there*, and the site receives a code it exchanges server-side for tokens. The site never sees your password — which is the entire point, and why a compromised third party cannot leak your Amazon credentials.
+
+**Prime Video on a TV** uses the device-code flow, because typing a password with a remote control is miserable. The TV shows a short code, you enter it on your phone, and the TV polls until authorisation completes. Same framework, different constraint.
+
+**AWS IAM is a separate system entirely, on purpose.** Your shopping account and your IAM user are unrelated. That separation is blast radius: a compromised retail login must not reach production infrastructure. IAM is also the cleanest illustration of the authn/authz split — a policy grants a *principal* an *action* on a *resource*, which is pure authorization; proving you are that principal happened earlier and separately.
+
+**Step-up authentication** is visible in ordinary use: browsing while signed in needs nothing, but changing your delivery address asks for the password again. The session is still valid; that particular *action* demands stronger proof.
+
 ## 🧠 AuthN vs AuthZ
 
 **Authentication (AuthN):** "Who are you?" — Proving identity (login).
@@ -884,6 +952,16 @@ content:`
 ## 🎯 Goal
 Understand the OWASP Top 10 vulnerabilities, how they're exploited, and how to defend against them. Think like an attacker to build like a defender.
 
+
+## 🌍 How Amazon Does This
+The 2019 Capital One breach is the most useful single case study for this module, because one attack chained several of the categories above.
+
+A misconfigured web application firewall on an EC2 instance could be induced to make requests on the attacker's behalf — **server-side request forgery**. That was used to reach the EC2 instance metadata service, which handed out temporary credentials for the instance's IAM role. That role had far broader S3 permissions than the application needed, so the credentials read customer data from buckets the web tier had no business touching. Roughly 100 million people were affected.
+
+Trace which failures had to line up: a misconfiguration (A02), an over-permissive role violating least privilege (A01), and no alerting on anomalous S3 access (A09). Any one of them fixed alone would have contained it.
+
+This is why defence in depth is not a slogan. The SSRF was the way in; the IAM role is what made it a breach rather than an incident. It is also why IMDSv2 — which requires a session token that SSRF cannot easily obtain — became the default: the platform absorbed the lesson.
+
 ## 🧠 OWASP Top 10 (2025)
 
 The list is revised every few years from real breach data, so **always cite the year** — an unlabelled "OWASP Top 10" is not a useful reference. This is the 2025 edition, released November 2025 and the first revision since 2021.
@@ -1004,6 +1082,16 @@ content:`
 ## 🎯 Goal
 Write tests that catch bugs without slowing you down. Understand the testing pyramid, TDD, mocking, and when to use each type of test.
 
+
+## 🌍 How Amazon Does This
+Amazon's testing priorities follow the blast radius, which is the right way to decide where to spend.
+
+**One-click checkout must never break.** It is the revenue path, so it gets end-to-end tests against real browsers and real payment sandboxes, and those run before every deploy. E2E tests are slow and flaky and expensive — and entirely worth it *here*, because a checkout outage costs more per minute than the whole test suite costs per year.
+
+**The tax calculator gets unit tests instead.** It is pure logic with many edge cases: jurisdictions, exemptions, digital versus physical goods. Thousands of cases run in milliseconds with no browser involved. Writing those as E2E tests would be slower, flakier, and worse at pinpointing the failure.
+
+That is the pyramid as a *cost* argument rather than a shape to copy: put fast cheap tests where logic is dense, and reserve slow expensive ones for the few paths whose failure you cannot absorb.
+
 ## 🧠 The Testing Pyramid
 
 \`\`\`mermaid
@@ -1119,6 +1207,18 @@ Add a comprehensive test suite to your API from earlier modules:
 content:`
 ## 🎯 Goal
 Containerize applications, build CI/CD pipelines, and understand infrastructure as code. Deploy with confidence, not prayer.
+
+
+## 🌍 How Amazon Does This
+Amazon has publicly described deploying to production roughly every 11 seconds across the company. That number is not a bragging right; it is a *consequence* of the pipeline design in this module, and it inverts the usual intuition about risk.
+
+**Small and frequent is safer than large and rare.** A deploy containing one change has an obvious culprit when it breaks. A quarterly release containing six hundred changes does not. Frequency is a debugging strategy.
+
+**One box first.** A new version goes to a single instance while the rest of the fleet stays on the old one. Its error rate and latency are compared against its neighbours — same traffic, same conditions, a built-in control group. Only if it stays healthy does the deploy widen.
+
+**Automatic rollback.** Alarms are wired to the deploy, not just to a dashboard. If the canary's metrics degrade, the pipeline reverts without waiting for a human to notice. Mean time to recovery matters more than mean time between failures, and a rollback nobody has to authorise at 3am is the difference.
+
+None of this works without the earlier pieces: you cannot deploy every 11 seconds unless tests are trustworthy and rollback is boring.
 
 ## 🧠 Containers — Consistent Environments
 
@@ -1279,6 +1379,16 @@ content:`
 ## 🎯 Goal
 Instrument your application so when something breaks at 3 AM, you know what happened, where, and why — before the user tells you.
 
+
+## 🌍 How Amazon Does This
+Amazon's most-quoted observability finding is that **100ms of added latency cost about 1% of sales**. That single measurement reframes the whole discipline: latency is not an engineering aesthetic, it has a price, and once you can price it you can justify the work.
+
+**Instrument the funnel, not the server.** CPU utilisation on a checkout host is nearly useless on its own. What matters is add-to-cart success rate, checkout completion, and the p99 latency of each step. Those are the golden signals for *this* system, and they are business events that happen to be technical.
+
+**p50 hides the problem; p99 is the customer.** With a hundred-plus service calls behind one product page, a request is only as fast as its slowest dependency. If every service has a 1% slow tail, almost every page hits at least one of them. Averages actively mislead here — this is why tail latency gets the attention.
+
+**Traces, because the median request touches dozens of services.** When a page is slow, "which service?" is unanswerable from logs alone. Distributed tracing exists because the call graph outgrew what a human can hold in their head.
+
 ## 🧠 The Three Pillars
 
 \`\`\`mermaid
@@ -1379,6 +1489,16 @@ Instrument your API with the three pillars:
 content:`
 ## 🎯 Goal
 Make systems fast and keep them fast under load. Understand caching strategies, load balancing, database scaling, and how to find bottlenecks using profiling tools. In production systems, performance is not a feature — it is a constraint that shapes every design decision.
+
+
+## 🌍 How Amazon Does This
+An Amazon product page is a cache hierarchy end to end, and each layer exists because the one behind it is too expensive to hit.
+
+**CDN edge** serves images and static assets from a nearby city. **In-memory cache** holds sessions and hot product data. **A database-level cache** absorbs repeated reads. Only what survives all three reaches the primary store — and by then the traffic is a small fraction of what arrived.
+
+**The N+1 problem lives here.** Rendering a product page with 20 seller offers naively means one query for offers plus 20 more for seller details. At page-view scale that is the difference between a working site and an outage, and it is invisible in development where you have three sellers and no latency.
+
+**Invalidation is the hard half.** A price change must reach the edge quickly, but blowing the whole cache on every write destroys the hit rate you built it for. The genuinely difficult questions in caching are always about *when to stop trusting* what you stored — the "two hard things" joke exists because this is where the bodies are.
 
 ## 🧠 Caching — The Biggest Performance Win
 
@@ -1588,6 +1708,22 @@ Performance optimization challenge:
 content:`
 ## 🎯 Goal
 When production breaks — and it will — diagnose the problem, fix it, and make sure it doesn't happen the same way again. Build a systematic debugging methodology so you stay calm under pressure instead of guessing randomly.
+
+
+## 🌍 How Amazon Does This
+The **AWS S3 outage of 28 February 2017** is worth reading in the original, and it is a better teacher than any invented scenario.
+
+An engineer running a documented playbook to remove a small number of billing-subsystem servers mistyped a parameter. The command removed a much larger set — including servers running the S3 index subsystem, which had not been fully restarted in years. Restarting it took hours, and S3 in us-east-1 was degraded for most of a working day.
+
+Three details are worth more than the story:
+
+**The blast radius was invisible until it happened.** Nobody knew that subsystem's cold-start time, because nobody had ever cold-started it at that scale. Untested recovery paths are not recovery paths.
+
+**The status dashboard depended on S3.** It could not show the outage, because it was part of it. Monitoring that shares a failure domain with the thing it monitors will fail exactly when you need it.
+
+**The remediation was blameless and structural.** Not "be more careful" — the tool was changed to refuse removals below a minimum capacity threshold, and to remove capacity more slowly. The postmortem asks what the *system* allowed, not who typed it.
+
+Read the real writeup and compare it to the template above: it is a document written under genuine pressure by people whose incentives all pointed toward saying less.
 
 ## 🧠 Common Production Failures
 
@@ -1821,6 +1957,16 @@ content:`
 ## 🎯 Goal
 Navigate AWS/GCP/Azure service catalogs without drowning. Understand compute, storage, networking, and IAM at a level where you can architect and deploy real systems. Know when to use VMs, containers, or serverless, and manage infrastructure as code with Terraform.
 
+
+## 🌍 How Amazon Does This
+AWS is the same infrastructure Amazon Retail runs on, which is why its primitives look the way they do — they were shaped by an internal customer with unusual requirements.
+
+**Regions and availability zones are a physics decision.** AZs are separate facilities close enough for synchronous replication (single-digit milliseconds) but far enough apart not to share a power grid or flood plain. Regions are far enough to survive a regional disaster and far enough that synchronous replication is off the table. That is the whole geography, and every multi-region design starts from it.
+
+**IAM roles rather than keys.** An EC2 instance assumes a role and receives temporary rotating credentials, rather than holding a long-lived key on disk. Long-lived credentials leak — into git history, logs, screenshots — and a credential that expires in an hour is a much smaller prize. (This is also the mechanism the Capital One SSRF abused in \`cs-07\`, which is why IMDSv2 exists.)
+
+**Managed services trade cost for undifferentiated work.** RDS is more expensive per instance-hour than self-managed Postgres, and cheaper once you count the engineer who would otherwise handle backups, failover and patching at 3am. The right comparison is total cost, including salaries.
+
 ## 🧠 Cloud Service Map
 
 The major cloud providers offer dozens of services, but they map to the same fundamental categories:
@@ -2025,6 +2171,16 @@ content:`
 ## 🎯 Goal
 Design scalable systems from scratch. Handle system design challenges by thinking systematically: requirements then components then data flow then bottlenecks. Develop the judgment to articulate trade-offs rather than defaulting to buzzword architectures.
 
+
+## 🌍 How Amazon Does This
+"Customers who bought this also bought" is a good system-design interview question because the constraints are real and pull in different directions.
+
+**Read-heavy by orders of magnitude.** The recommendation is read on every product view and recomputed comparatively rarely. That asymmetry is the design: precompute offline, store the result, serve it from a cache. This is not a query you run at request time.
+
+**Consistency requirements differ inside one page.** The recommendation strip can be hours stale and nobody is harmed. The **inventory count cannot be** — overselling the last unit means cancelling a confirmed order. Same page, same request, opposite ends of the consistency trade-off. This is exactly the PACELC point above: even without a partition, you are choosing latency versus consistency per operation.
+
+**Estimate before designing.** Hundreds of millions of catalogue items, a much larger number of daily views, a recommendation list of maybe 20 ids per item. Do that arithmetic first: it tells you whether this fits in memory, and therefore which designs are worth discussing at all. Interviewers care far more about that reasoning than about the box diagram.
+
 ## 🧠 The System Design Framework
 
 Every system design follows the same flow. Resist the urge to jump to components — start with requirements.
@@ -2211,6 +2367,21 @@ Pick one of the designs above and build a working prototype:
 content:`
 ## 🎯 Goal
 Wire everything together. Build, deploy, secure, monitor, and operate a complete multi-component system that uses concepts from every prior module. This is not just a coding exercise — it is practice for what professional software engineering actually looks like: making decisions under constraints, shipping to real users, and keeping the system running.
+
+
+## 🌍 How Amazon Does This
+Scope this capstone as **one slice of a system like Amazon's, built properly** — not a clone. "Build Amazon" produces a shallow imitation of many features; "build the seller-facing order management slice" produces something with real depth.
+
+That slice has everything this track covered, and it is small enough to actually finish:
+
+- A schema where orders are relational and ACID, because money is involved (\`cs-03\`)
+- An API a seller's own tooling could call, with cursor pagination (\`cs-04\`)
+- Authentication, plus authorization that stops seller A reading seller B's orders (\`cs-06\`, \`cs-07\`)
+- Tests weighted toward the paths whose failure costs the most (\`cs-08\`)
+- A pipeline that deploys on merge and can roll back (\`cs-09\`)
+- Dashboards showing order-processing latency and failure rate, not just CPU (\`cs-10\`)
+
+Then break it deliberately and write the postmortem — the real test is whether your monitoring told you what happened before your users did.
 
 ## 🧠 The Capstone Architecture
 
