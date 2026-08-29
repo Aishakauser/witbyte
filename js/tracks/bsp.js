@@ -3,6 +3,19 @@ export const BSP_MODULES = [
 ## 🎯 Goal
 Understand what a Board Support Package is, its boundaries, and its role in the product development chain from silicon vendor to consumer.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Android's \`/vendor\` partition *is* a BSP, productised. Project Treble split the vendor's hardware-specific code away from the OS precisely so Google could ship an Android update without every silicon vendor re-porting their BSP — the Generic Kernel Image runs on top, vendor modules plug in underneath. The scope document this module describes is the same boundary, drawn as a partition.
+
+**On your bench.** The Pi's BSP is a public git tree, so you can measure how far a real BSP diverges from mainline:
+
+\`\`\`bash
+git clone --depth 1 -b rpi-6.6.y https://github.com/raspberrypi/linux
+git log --oneline v6.6..HEAD | wc -l     # commits carried on top of mainline
+\`\`\`
+
+That number is the maintenance burden a BSP represents, and the argument for upstreaming, in one figure.
+
 ## 🧠 BSP — The Bridge Layer
 
 A BSP is everything needed to boot an operating system on a specific board. The silicon vendor provides a reference BSP; the OEM customizes it for their product.
@@ -98,6 +111,20 @@ Create a BSP inventory document for any development board you have access to (Ra
 {id:'bsp-02',num:'02',title:'Boot Sequence',hours:12,phase:0,topics:['U-Boot','TF-A','Secure boot','AVB','ROM code'],content:`
 ## 🎯 Goal
 Trace the complete boot sequence from power-on to userspace. Understand each stage, secure boot, and the chain of trust.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Pressing power runs this exact chain. The SoC's immutable Boot ROM verifies a signature against keys burned into one-time-programmable fuses, then hands to the vendor bootloader, then ARM Trusted Firmware, then Linux. Android Verified Boot carries the chain of trust all the way to the root filesystem — which is why an unlocked bootloader shows a warning screen at every boot, and why a modified system partition refuses to mount.
+
+**On your bench.** The Pi is the *counterexample*, and that makes it more instructive, not less. There is no U-Boot and no TF-A by default: the BCM2712's ROM reads the bootloader from EEPROM, which starts the **VideoCore GPU**, which brings up the ARM cores and starts the kernel. The GPU boots the CPU.
+
+\`\`\`bash
+vcgencmd bootloader_version
+dmesg | head -40                # the kernel's own view, from first instruction
+systemd-analyze critical-chain  # where userspace time actually goes
+\`\`\`
+
+Watch a Pi boot expecting the ARM sequence above and you will look for stages that are not there. Knowing *why* is the point.
 
 ## 🧠 The Boot Chain
 
@@ -200,6 +227,20 @@ Trace and document the boot sequence of your own machine or a QEMU virtual machi
 {id:'bsp-03',num:'03',title:'Linux Kernel Fundamentals',hours:12,phase:0,topics:['Kernel','Syscalls','Modules','procfs','sysfs'],content:`
 ## 🎯 Goal
 Understand the Linux kernel architecture — monolithic with modules, the kernel/userspace boundary, syscalls, and the kernel build system.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Android now ships a Generic Kernel Image: one Google-built kernel binary, with vendor code confined to loadable modules against a stable interface. That exists because the alternative — every vendor forking the kernel — is what made Android updates so slow for a decade. \`uname -r\` on a phone shows you the GKI version plus a vendor suffix, which is the whole split in one string.
+
+**On your bench.** Building a kernel for a real board is a \`defconfig\` away:
+
+\`\`\`bash
+uname -r
+zcat /proc/config.gz | grep -c '^CONFIG'   # options in the running kernel
+make bcm2712_defconfig                     # a real board config, not generic
+\`\`\`
+
+A defconfig is a board's answer to "which of these thousands of options does *this* hardware need?" — the question this module is about.
 
 ## 🧠 Kernel Architecture
 
@@ -320,6 +361,20 @@ If you do not have a Linux machine, use a VM or WSL2.
 {id:'bsp-04',num:'04',title:'Device Trees',hours:10,phase:0,topics:['DTS','DTB','Overlays','Bindings'],content:`
 ## 🎯 Goal
 Read, write, and debug device trees — the data structure that tells the kernel what hardware is present and how it's connected.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your phone's boot image carries a DTB, and increasingly a separate \`dtbo\` partition of overlays — one base tree for the SoC, then per-model overlays for each variant's panel, camera and touch controller. That is how one Android build supports several SKUs: same kernel, different device tree.
+
+**On your bench.** The Pi is the friendliest production example of overlays anywhere, because you edit them in a text file:
+
+\`\`\`bash
+ls /boot/firmware/overlays/ | head          # the shipped overlay library
+dtoverlay -l                                 # what is loaded right now
+ls /proc/device-tree/soc/                    # the live tree, as directories
+\`\`\`
+
+Add \`dtoverlay=ov5647\` to \`/boot/firmware/config.txt\` and reboot: that is the same OV5647 sensor node this module walks through, and it is the Pi Camera.
 
 ## 🧠 What Problem Device Trees Solve
 
@@ -463,6 +518,19 @@ Write a device tree overlay for a hypothetical expansion board:
 ## 🎯 Goal
 Write a Linux kernel driver — understand the platform driver model, probe/remove lifecycle, and how userspace communicates with drivers.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your handset loads hundreds of these. Every sensor, the display panel, the touch controller, the charger IC — each is a driver that probes, claims resources, registers with a subsystem, and cleans up on unbind. The probe-and-register shape you write here is the same one running a few hundred times before your lock screen appears.
+
+**On your bench.** Rather than starting from scratch, read a real driver for hardware you can hold. A Sense HAT carries an ST sensor with an in-tree IIO driver:
+
+\`\`\`bash
+ls /sys/bus/iio/devices/                    # devices a driver already registered
+sudo dmesg | grep -i probe | tail
+\`\`\`
+
+Read that driver's probe function alongside the skeleton above. Everything extra it does — regmap, error unwinding, devm helpers — is a lesson about the difference between a driver that works and one that survives unbind.
+
 ## 🧠 Driver Types and the Platform Model
 
 | Type | Interface | Example |
@@ -593,6 +661,20 @@ Write a character device driver for a virtual sensor:
 ## 🎯 Goal
 Cross-compile a Linux kernel, build a complete root filesystem, and understand when to use Yocto vs Buildroot.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** AOSP is its own build universe — \`repo\` over hundreds of git trees, Soong and Ninja rather than Make, \`lunch\` to pick a target. Different tooling from Yocto, identical problem: reproducibly turn source plus a board config into a flashable image, for many product variants, without hand-assembly.
+
+**On your bench.** \`meta-raspberrypi\` is the gentlest real Yocto BSP layer there is, and Buildroot gets you an image far faster:
+
+\`\`\`bash
+git clone -b scarthgap https://git.yoctoproject.org/meta-raspberrypi
+# Buildroot, for a first working image in well under an hour:
+make raspberrypi4_64_defconfig && make
+\`\`\`
+
+Doing both on the same board is the clearest way to feel the trade-off this module describes: Buildroot is simpler and faster; Yocto scales to products and long-term maintenance.
+
 ## 🧠 Cross-Compilation Flow
 
 Cross-compilation means building code on your development host (x86_64) that runs on a different target (ARM64, RISC-V). The toolchain includes a cross-compiler, linker, and target libraries.
@@ -690,6 +772,19 @@ Build a minimal Linux system with Buildroot and boot it:
 ## 🎯 Goal
 Build and customize root filesystems, understand init systems, and implement OTA update strategies.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Android updates use A/B slots: the new system is written to the inactive slot while you keep using the active one, then a flag flips at reboot. If the new slot fails to boot, the bootloader falls back. That is why phone updates apply in the background and reboot quickly, and why a failed update does not brick the device — exactly the design this module argues for.
+
+**On your bench.** A read-only root with an overlay is one command away on a Pi, and it is the same reliability idea:
+
+\`\`\`bash
+sudo raspi-config      # Performance Options -> Overlay File System
+findmnt / -o SOURCE,FSTYPE,OPTIONS
+\`\`\`
+
+With the overlay on, writes land in RAM and the SD card is never dirtied — so yanking power cannot corrupt the filesystem. That single property is why so many shipped embedded Linux products run read-only.
+
 ## 🧠 From Kernel to Userspace
 
 \`\`\`mermaid
@@ -784,6 +879,19 @@ Build a minimal rootfs from scratch (no Buildroot, no Yocto):
 {id:'bsp-08',num:'08',title:'HAL & Platform Abstraction',hours:10,phase:1,topics:['HAL','regmap','clk framework','pinctrl'],content:`
 ## 🎯 Goal
 Design hardware abstraction layers and work with Linux kernel frameworks — regmap, clock, reset, and pin control.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** A phone SoC has hundreds of clocks in a tree with shared parents, and dozens of pins that each multiplex several functions. Nobody manages that by writing registers directly — the clock and pinctrl frameworks exist so a camera driver can ask for its clock without knowing which PLL it descends from, and without fighting the display driver over a shared divider.
+
+**On your bench.** The Pi exposes both frameworks as readable trees:
+
+\`\`\`bash
+sudo cat /sys/kernel/debug/clk/clk_summary | head -40
+sudo cat /sys/kernel/debug/pinctrl/*/pinmux-pins | head -20
+\`\`\`
+
+\`clk_summary\` shows every clock, its rate, its parent and its enable count. Watching a device's clock enable count rise when its driver probes is the abstraction on this page becoming visible.
 
 ## 🧠 Linux Kernel Frameworks
 
@@ -916,6 +1024,20 @@ Study and document a real kernel driver that uses multiple frameworks:
 ## 🎯 Goal
 Write Linux drivers for common peripherals — I2C sensors, SPI devices, GPIO with interrupts — using the proper kernel subsystem APIs.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your accelerometer sits on I2C behind a sensor hub, its interrupt line wired to a GPIO so it can wake the system on motion rather than being polled. Polling a sensor is a battery bug: the interrupt-driven pattern in this module is why your phone can notice you picked it up without the main processor ever staying awake.
+
+**On your bench.** A Sense HAT gives you the full set — several I2C devices, a GPIO interrupt and an input device — on one £30 board:
+
+\`\`\`bash
+i2cdetect -y 1                  # every device on the bus
+ls /sys/bus/i2c/devices/
+sudo evtest                     # the joystick, as a real input device
+\`\`\`
+
+Write your driver against hardware whose datasheet you can download, then compare it with the in-tree driver for the same part.
+
 ## 🧠 I2C Subsystem Architecture
 
 \`\`\`mermaid
@@ -1027,6 +1149,20 @@ Write an I2C temperature sensor driver using the IIO subsystem:
 ## 🎯 Goal
 Understand the Linux display stack — DRM/KMS, the display pipeline, framebuffer management, and the landscape of GPU drivers and display servers.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your display pipeline is DRM/KMS all the way down: a compositor hands buffers to a hardware composer, which uses dedicated overlay planes to blend video, UI and cursor without ever touching the GPU. That is why scrolling stays smooth while a video plays — the composition is done by fixed-function hardware, not shaders.
+
+**On your bench.** The Pi is a genuinely rare case: a fully mainline, open DRM/KMS driver, \`vc4-kms-v3d\`, with no vendor blob. That makes it one of the few boards where you can read the whole graphics stack:
+
+\`\`\`bash
+sudo apt install -y libdrm-tests
+modetest -c                      # connectors, encoders, modes
+modetest -p                      # planes -- the overlay hardware
+\`\`\`
+
+\`modetest -p\` listing multiple planes is the hardware composer's raw material, on a board you own.
+
 ## 🧠 Display Pipeline Architecture
 
 \`\`\`mermaid
@@ -1103,6 +1239,20 @@ Explore the DRM subsystem and write a framebuffer renderer:
 {id:'bsp-11',num:'11',title:'Audio Subsystem',hours:10,phase:2,topics:['ALSA','ASoC','DAPM','PipeWire','Codec'],content:`
 ## 🎯 Goal
 Understand the Linux audio stack — ALSA, ASoC framework, DAPM power management, and audio routing for embedded products.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Your phone runs an always-on hotword DSP that listens while the main processor sleeps, and a codec whose routing changes every time you plug in headphones. DAPM exists for exactly that: it powers up only the path in use, so an idle audio subsystem costs almost nothing. When you unplug headphones and sound moves to the speaker, DAPM is re-walking the graph.
+
+**On your bench.** An I2S DAC HAT — HiFiBerry, PCM5122 — is real ASoC hardware with a machine driver you can read:
+
+\`\`\`bash
+aplay -l                         # sound cards the kernel found
+sudo cat /sys/kernel/debug/asoc/components
+speaker-test -c2 -twav
+\`\`\`
+
+Watch the debugfs widget state change as playback starts and stops: that is DAPM powering the path up and back down.
 
 ## 🧠 ASoC Architecture
 
@@ -1193,6 +1343,21 @@ Map and document the complete audio subsystem on your machine:
 ## 🎯 Goal
 Understand the Linux camera and multimedia stack — V4L2, media controller, ISP pipeline configuration, and video processing with GStreamer.
 
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** A modern phone runs three or more cameras into one ISP over CSI-2, and the pipeline is configured per shot — resolution, format, 3A statistics routing. That complexity is precisely why **libcamera** exists: V4L2 alone cannot express a modern camera pipeline, and every vendor was solving it privately.
+
+**On your bench.** The Pi's camera stack is libcamera, and the media graph in this module is inspectable:
+
+\`\`\`bash
+sudo apt install -y v4l-utils libcamera-tools
+media-ctl -p                     # entities, pads and links: the graph above
+rpicam-hello --list-cameras
+rpicam-jpeg -o test.jpg
+\`\`\`
+
+Note \`rpicam-*\`, not the long-removed \`raspistill\`. \`media-ctl -p\` prints the very topology this module diagrams, for hardware on your desk.
+
 ## 🧠 Camera Pipeline Architecture
 
 \`\`\`mermaid
@@ -1272,6 +1437,20 @@ Build a camera capture pipeline and analyze the data flow:
 {id:'bsp-13',num:'13',title:'Connectivity',hours:10,phase:2,topics:['WiFi','Bluetooth','Cellular','mac80211','QMI'],content:`
 ## 🎯 Goal
 Understand Linux connectivity stacks — WiFi (cfg80211/mac80211), Bluetooth (BlueZ), and cellular modem integration.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** The cellular modem is effectively a second computer: its own cores, its own RTOS, its own firmware, reached over PCIe or USB and spoken to with QMI rather than ordinary network calls. Wi-Fi and Bluetooth usually share one chip and one antenna, which is why heavy Wi-Fi traffic can stutter Bluetooth audio — the coexistence problem this module describes.
+
+**On your bench.** The Pi's CYW43455 is a FullMAC part running \`brcmfmac\` — the same driver family named in the table above — and it shares silicon with the Bluetooth radio:
+
+\`\`\`bash
+iw dev && iw list | head -30
+dmesg | grep -i brcmfmac         # firmware load: FullMAC needs a blob
+hciconfig -a                     # Bluetooth on the same chip
+\`\`\`
+
+The firmware-loading line in \`dmesg\` is the FullMAC/SoftMAC distinction made concrete: the MAC layer you are not running lives in that blob.
 
 ## 🧠 WiFi Stack Architecture
 
@@ -1364,6 +1543,20 @@ Set up a WiFi access point and Bluetooth scanner on Linux:
 {id:'bsp-14',num:'14',title:'Power & Thermal Frameworks',hours:8,phase:2,topics:['cpufreq','cpuidle','Thermal','Suspend','PM runtime'],content:`
 ## 🎯 Goal
 Work with Linux power and thermal management frameworks — cpufreq, cpuidle, thermal zones, system suspend/resume, and device PM runtime.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** This is where a phone and a Pi differ most. Your handset spends nearly all its life in deep suspend, waking for a network page and going straight back. Android layers Doze and App Standby on top of the kernel frameworks here, and a single misbehaving wakelock — an app holding the system awake — is the classic overnight battery drain.
+
+**On your bench.** A Pi has **no suspend-to-RAM**: it runs flat out or is off. That is a useful negative anchor, because it isolates the frameworks that *do* work:
+
+\`\`\`bash
+cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+cat /sys/class/thermal/thermal_zone0/temp
+vcgencmd get_throttled
+\`\`\`
+
+cpufreq, thermal and PM runtime are all live and observable. Suspend is the one piece you would have to go to a phone or a battery-powered board to study.
 
 ## 🧠 Power Management Architecture
 
@@ -1467,6 +1660,20 @@ Create a thermal monitoring and analysis system:
 {id:'bsp-15',num:'15',title:'Capstone — BSP Integration & Release',hours:12,phase:2,topics:['Validation','Porting','Release','Upstream'],content:`
 ## 🎯 Goal
 Port a BSP to a new board, validate it systematically, and prepare for production release — the complete BSP engineering cycle from vendor silicon to shipping product.
+
+
+## 📱 In Your Pocket, On Your Bench
+**In your phone.** Shipping a phone BSP means a validation matrix nobody enjoys: every SKU, every panel and camera variant, every carrier band, boot-tested and suspend-tested, then held stable for years of security patches. "It boots on my board" is roughly the first percent of the work.
+
+**On your bench.** Target a **Pi 5** rather than a Pi 4 for this capstone. The RP1 I/O controller changes the peripheral story enough that porting between them is a genuine bring-up exercise rather than a recompile:
+
+\`\`\`bash
+cat /proc/device-tree/model
+lspci                            # RP1: peripherals behind PCIe
+vcgencmd get_throttled && uptime
+\`\`\`
+
+Write the release notes as if someone else must reproduce your image in a year. That constraint is what separates a BSP from a working directory.
 
 ## 🧠 BSP Porting Process
 
